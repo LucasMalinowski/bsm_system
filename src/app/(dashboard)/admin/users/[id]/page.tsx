@@ -2,7 +2,7 @@ import { getServerSession } from "@/lib/auth/get-session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createUserService } from "@/lib/services/user.service";
 import { isAdmin } from "@/lib/auth/permissions";
-import { redirect, notFound } from "next/navigation";
+import { forbidden, redirect, notFound } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RoleManager } from "@/components/admin/role-manager";
 import { Avatar } from "@/components/ui/avatar";
@@ -17,7 +17,7 @@ export default async function UserDetailPage({
   const { id } = await params;
   const user = await getServerSession();
   if (!user) redirect("/login");
-  if (!isAdmin(user)) redirect("/dashboard");
+  if (!isAdmin(user)) forbidden();
 
   const supabase = await createSupabaseServerClient();
   const service = createUserService(supabase);

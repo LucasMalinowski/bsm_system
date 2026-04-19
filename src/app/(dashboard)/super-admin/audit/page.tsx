@@ -1,8 +1,8 @@
 import { getServerSession } from "@/lib/auth/get-session";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createAuditService } from "@/lib/services/audit.service";
 import { createCompanyService } from "@/lib/services/company.service";
-import { redirect } from "next/navigation";
+import { forbidden, redirect } from "next/navigation";
 import { formatDateTime } from "@/lib/utils/format";
 import { AuditFilters } from "./audit-filters";
 import type { AuditResourceType } from "@/lib/services/audit.service";
@@ -34,23 +34,24 @@ export default async function AuditPage({
 }) {
   const user = await getServerSession();
   if (!user) redirect("/login");
-  if (user.role !== "super_admin") redirect("/dashboard");
+  if (user.role !== "super_admin") forbidden();
 
   const sp = await searchParams;
   const page = Number(sp.page ?? 1);
   const companyId = sp.company_id;
   const resourceType = sp.resource_type as AuditResourceType | undefined;
+  const limit = 25;
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = createSupabaseAdminClient();
   const auditService = createAuditService(supabase);
   const companyService = createCompanyService(supabase);
 
   const [{ data: logs, count }, companies] = await Promise.all([
-    auditService.list({ companyId, resourceType, page, limit: 50 }),
+    auditService.list({ companyId, resourceType, page, limit }),
     companyService.listAll(),
   ]);
 
-  const totalPages = Math.ceil(count / 50);
+  const totalPages = Math.ceil(count / limit);
 
   const buildPageUrl = (p: number) => {
     const params = new URLSearchParams();
@@ -61,10 +62,10 @@ export default async function AuditPage({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="p-4 lg:p-7 flex flex-col gap-5">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Log de Auditoria</h1>
-        <p className="mt-1 text-sm text-gray-500">Histórico de todas as modificações no sistema</p>
+        <h1 className="text-[20px] lg:text-[22px] font-extrabold text-gray-900">Auditoria</h1>
+        <p className="text-[13px] text-gray-500 mt-0.5">Histórico global de alterações do sistema</p>
       </div>
 
       <AuditFilters
@@ -74,17 +75,17 @@ export default async function AuditPage({
       />
 
       {/* Table */}
-      <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+      <div className="rounded-xl border border-gray-200 bg-white overflow-hidden" style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50">
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Data/Hora</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Usuário</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Empresa</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Ação</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Recurso</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Item</th>
+                <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wide text-gray-500">Data/hora</th>
+                <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wide text-gray-500">Usuário</th>
+                <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wide text-gray-500">Empresa</th>
+                <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wide text-gray-500">Ação</th>
+                <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wide text-gray-500">Recurso</th>
+                <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wide text-gray-500">Item</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">

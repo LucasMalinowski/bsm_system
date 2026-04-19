@@ -58,8 +58,11 @@ export class InvitationService {
     const redirectTo = `${input.appBaseUrl}/invite/${invitation.token}`;
     const { error: inviteErr } = await admin.auth.admin.inviteUserByEmail(input.email, { redirectTo });
 
-    // ALREADY_REGISTERED means the user exists — we still created the DB record, just skip the email
-    if (inviteErr && !inviteErr.message.includes("already been registered")) {
+    if (inviteErr) {
+      if (inviteErr.message.includes("already been registered")) {
+        throw new Error("Já existe um usuário autenticado no Supabase com este email");
+      }
+
       throw new Error(`Failed to send invite email: ${inviteErr.message}`);
     }
 

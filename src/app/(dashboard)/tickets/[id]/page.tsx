@@ -2,7 +2,7 @@ import { getServerSession } from "@/lib/auth/get-session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createTicketService } from "@/lib/services/ticket.service";
 import { can, PERMISSIONS } from "@/lib/auth/permissions";
-import { redirect, notFound } from "next/navigation";
+import { forbidden, redirect, notFound } from "next/navigation";
 import { TicketStatusBadge, TicketPriorityBadge } from "@/components/tickets/ticket-status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar } from "@/components/ui/avatar";
@@ -18,7 +18,7 @@ export default async function TicketDetailPage({
   const { id } = await params;
   const user = await getServerSession();
   if (!user) redirect("/login");
-  if (!can(user, PERMISSIONS.TICKET_READ)) redirect("/dashboard");
+  if (!can(user, PERMISSIONS.TICKET_READ)) forbidden();
 
   const supabase = await createSupabaseServerClient();
   const service = createTicketService(supabase);

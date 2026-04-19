@@ -1,10 +1,11 @@
 import { getServerSession } from "@/lib/auth/get-session";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createCompanyService } from "@/lib/services/company.service";
-import { redirect, notFound } from "next/navigation";
+import { forbidden, redirect, notFound } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ThemeEditor } from "@/components/admin/theme-editor";
 import { LogoUpload } from "@/components/admin/logo-upload";
+import { DeleteCompanyButton } from "../delete-company-button";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
@@ -16,9 +17,9 @@ export default async function CompanyDetailPage({
   const { id } = await params;
   const user = await getServerSession();
   if (!user) redirect("/login");
-  if (user.role !== "super_admin") redirect("/dashboard");
+  if (user.role !== "super_admin") forbidden();
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = createSupabaseAdminClient();
   const service = createCompanyService(supabase);
   const company = await service.getById(id);
 
@@ -56,6 +57,15 @@ export default async function CompanyDetailPage({
             accent_color: company.accent_color,
             logo_url: company.logo_url,
           }} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Zona de Perigo</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <DeleteCompanyButton companyId={company.id} companyName={company.name} />
         </CardContent>
       </Card>
     </div>

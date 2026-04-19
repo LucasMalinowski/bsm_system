@@ -58,22 +58,39 @@ export class AuditService {
   }): Promise<{ data: AuditLog[]; count: number }> {
     const { companyId, resourceType, userId, page = 1, limit = 50 } = filters;
 
-    let query = this.supabase
+    let dataQuery = this.supabase
       .from("audit_logs")
       .select(
-        "*, user:profiles(name), company:companies(name)",
-        { count: "exact" }
+        "id,action,resource_type,resource_name,created_at, user:profiles(name), company:companies(name)",
       );
 
-    if (companyId) query = query.eq("company_id", companyId);
-    if (resourceType) query = query.eq("resource_type", resourceType);
-    if (userId) query = query.eq("user_id", userId);
+    let countQuery = this.supabase
+      .from("audit_logs")
+      .select("id", { count: "exact", head: true });
 
-    const { data, error, count } = await query
-      .order("created_at", { ascending: false })
-      .range((page - 1) * limit, page * limit - 1);
+    if (companyId) {
+      dataQuery = dataQuery.eq("company_id", companyId);
+      countQuery = countQuery.eq("company_id", companyId);
+    }
+    if (resourceType) {
+      dataQuery = dataQuery.eq("resource_type", resourceType);
+      countQuery = countQuery.eq("resource_type", resourceType);
+    }
+    if (userId) {
+      dataQuery = dataQuery.eq("user_id", userId);
+      countQuery = countQuery.eq("user_id", userId);
+    }
+
+    const [
+      { data, error },
+      { count, error: countError },
+    ] = await Promise.all([
+      dataQuery.order("created_at", { ascending: false }).range((page - 1) * limit, page * limit - 1),
+      countQuery,
+    ]);
 
     if (error) throw new Error(error.message);
+    if (countError) throw new Error(countError.message);
     return { data: (data ?? []) as AuditLog[], count: count ?? 0 };
   }
 }

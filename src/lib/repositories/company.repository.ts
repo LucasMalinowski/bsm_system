@@ -20,9 +20,15 @@ export class CompanyRepository extends BaseRepository<Company> {
     const { data, error } = await this.supabase
       .from("companies")
       .select(`
-        *,
+        id,
+        name,
+        slug,
+        created_at,
+        primary_color,
+        secondary_color,
         profiles(count)
-      `);
+      `)
+      .order("name", { ascending: true });
 
     if (error) throw new Error(error.message);
 

@@ -1,8 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createCompanyRepository } from "@/lib/repositories/company.repository";
-import { createProfileRepository } from "@/lib/repositories/profile.repository";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { DEFAULT_PERMISSIONS_BY_ROLE } from "@/lib/auth/permissions";
 import type { Company } from "@/types";
 import type { CreateCompanyInput, UpdateCompanyInput } from "@/lib/validations/company.schemas";
 
@@ -37,11 +35,7 @@ export class CompanyService {
   }
 
   async create(input: CreateCompanyInput): Promise<Company> {
-    // Use admin client to bypass RLS for cross-tenant provisioning
-    const admin = createSupabaseAdminClient();
-    const companyRepo = createCompanyRepository(admin);
-
-    // Create company
+    const companyRepo = createCompanyRepository(this.supabase);
     const company = await companyRepo.create({
       name: input.name,
       slug: input.slug,
@@ -50,27 +44,6 @@ export class CompanyService {
       accent_color: input.accent_color ?? "#e0f0fb",
       logo_url: null,
     });
-
-    // Create admin user via Supabase Auth
-    const { data: authUser, error: authError } = await admin.auth.admin.createUser({
-      email: input.admin_email,
-      email_confirm: true,
-      user_metadata: { name: input.admin_name },
-    });
-
-    if (authError) throw new Error(`Failed to create admin user: ${authError.message}`);
-
-    // Update profile with company + admin role
-    const profileRepo = createProfileRepository(admin);
-    await profileRepo.update(authUser.user.id, {
-      company_id: company.id,
-      role: "admin",
-      name: input.admin_name,
-    });
-
-    // Assign default admin permissions
-    await profileRepo.setPermissions(authUser.user.id, DEFAULT_PERMISSIONS_BY_ROLE.admin);
-
     return company;
   }
 
@@ -80,8 +53,68 @@ export class CompanyService {
   }
 
   async delete(id: string): Promise<void> {
-    const repo = createCompanyRepository(this.supabase);
+    const admin = createSupabaseAdminClient();
+    const repo = createCompanyRepository(admin);
+    const company = await repo.findById(id);
+    if (!company) throw new Error("Company not found");
+
+    const { data: profiles, error: profilesError } = await admin
+      .from("profiles")
+      .select("id")
+      .eq("company_id", id);
+
+    if (profilesError) throw new Error(profilesError.message);
+
+    const profileIds = (profiles ?? []).map((profile) => profile.id);
+    const cleanupPrefixes = [
+      { bucket: "company-assets", prefix: id },
+      { bucket: "documents", prefix: id },
+      { bucket: "equipment-images", prefix: id },
+      { bucket: "avatars", prefix: id },
+    ] as const;
+
+    const deleteStoragePrefix = async (bucket: string, prefix: string) => {
+      const { data, error } = await admin.storage.from(bucket).list(prefix, { limit: 1000 });
+      if (error) throw new Error(`Failed to list ${bucket} files: ${error.message}`);
+
+      const paths = (data ?? [])
+        .filter((item) => item.name)
+        .map((item) => `${prefix}/${item.name}`);
+
+      if (paths.length === 0) return;
+
+      const { error: removeError } = await admin.storage.from(bucket).remove(paths);
+      if (removeError) throw new Error(`Failed to remove ${bucket} files: ${removeError.message}`);
+    };
+
+    const { error: auditError } = await admin
+      .from("audit_logs")
+      .delete()
+      .eq("company_id", id);
+    if (auditError) throw new Error(auditError.message);
+
     await repo.delete(id);
+
+    const authDeletions = await Promise.allSettled(
+      profileIds.map((profileId) => admin.auth.admin.deleteUser(profileId))
+    );
+    authDeletions.forEach((result) => {
+      if (result.status === "rejected") {
+        console.warn("Failed to delete Supabase Auth user during company cleanup", result.reason);
+      } else if (result.value.error) {
+        console.warn("Supabase Auth user delete returned an error during company cleanup", result.value.error.message);
+      }
+    });
+
+    const { error: profileDeleteError } = await admin
+      .from("profiles")
+      .delete()
+      .eq("company_id", id);
+    if (profileDeleteError) throw new Error(profileDeleteError.message);
+
+    await Promise.allSettled(
+      cleanupPrefixes.map(({ bucket, prefix }) => deleteStoragePrefix(bucket, prefix))
+    );
   }
 }
 

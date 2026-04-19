@@ -1,11 +1,12 @@
 import { cookies } from "next/headers";
+import { cache } from "react";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { DEFAULT_PERMISSIONS_BY_ROLE } from "@/lib/auth/permissions";
 import type { AuthUser, Permission } from "@/types";
 
 export const IMPERSONATE_COOKIE = "bsm_impersonate";
 
-export async function getServerSession(): Promise<AuthUser | null> {
+export const getServerSession = cache(async (): Promise<AuthUser | null> => {
   try {
     const supabase = await createSupabaseServerClient();
 
@@ -18,26 +19,17 @@ export async function getServerSession(): Promise<AuthUser | null> {
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("*")
+      .select("name,role,company_id,avatar_url")
       .eq("id", user.id)
       .single();
 
     if (!profile) return null;
 
-    const { data: permissionRows } = await supabase
-      .from("user_permissions")
-      .select("permission")
-      .eq("user_id", user.id);
-
-    // Fall back to role defaults if no explicit permissions are set yet
-    const permissions: Permission[] =
-      permissionRows && permissionRows.length > 0
-        ? (permissionRows.map((r) => r.permission) as Permission[])
-        : DEFAULT_PERMISSIONS_BY_ROLE[profile.role as keyof typeof DEFAULT_PERMISSIONS_BY_ROLE] ?? [];
-
     // Check for super_admin impersonation cookie
     let impersonating: string | null = null;
     let effectiveCompanyId: string | null = profile.company_id;
+    let permissions: Permission[] =
+      DEFAULT_PERMISSIONS_BY_ROLE[profile.role as keyof typeof DEFAULT_PERMISSIONS_BY_ROLE] ?? [];
 
     if (profile.role === "super_admin") {
       const cookieStore = await cookies();
@@ -46,6 +38,17 @@ export async function getServerSession(): Promise<AuthUser | null> {
         impersonating = cookie.value;
         effectiveCompanyId = cookie.value;
       }
+    } else {
+      const { data: permissionRows } = await supabase
+        .from("user_permissions")
+        .select("permission")
+        .eq("user_id", user.id);
+
+      // Fall back to role defaults if no explicit permissions are set yet
+      permissions =
+        permissionRows && permissionRows.length > 0
+          ? (permissionRows.map((r) => r.permission) as Permission[])
+          : permissions;
     }
 
     return {
@@ -61,4 +64,4 @@ export async function getServerSession(): Promise<AuthUser | null> {
   } catch {
     return null;
   }
-}
+});

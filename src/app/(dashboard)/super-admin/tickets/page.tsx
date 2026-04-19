@@ -1,10 +1,10 @@
 import { getServerSession } from "@/lib/auth/get-session";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { forbidden, redirect } from "next/navigation";
 import { TicketStatusBadge, TicketPriorityBadge } from "@/components/tickets/ticket-status-badge";
-import { Card, CardContent } from "@/components/ui/card";
 import { formatDateTime } from "@/lib/utils/format";
 import Link from "next/link";
+import { Search } from "lucide-react";
 
 export default async function SATicketsPage({
   searchParams,
@@ -13,56 +13,73 @@ export default async function SATicketsPage({
 }) {
   const user = await getServerSession();
   if (!user) redirect("/login");
-  if (user.role !== "super_admin") redirect("/dashboard");
+  if (user.role !== "super_admin") forbidden();
 
   const sp = await searchParams;
   const page = Math.max(1, Number(sp.page ?? 1));
   const search = sp.search ?? "";
   const status = sp.status ?? "";
-  const limit = 50;
+  const limit = 25;
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = createSupabaseAdminClient();
 
-  let query = supabase
+  let dataQuery = supabase
     .from("tickets")
     .select(
-      `*,
+      `id,title,status,priority,updated_at,
       company:companies(name),
       equipment:equipment(name),
-      assignee:profiles!tickets_assigned_to_fkey(name)`,
-      { count: "exact" }
+      assignee:profiles!tickets_assigned_to_fkey(name)`
     );
 
-  if (search) query = query.ilike("title", `%${search}%`);
-  if (status) query = query.eq("status", status);
+  let countQuery = supabase
+    .from("tickets")
+    .select("id", { count: "exact", head: true });
 
-  const { data, count, error } = await query
-    .order("updated_at", { ascending: false })
-    .range((page - 1) * limit, page * limit - 1);
+  if (search) {
+    dataQuery = dataQuery.ilike("title", `%${search}%`);
+    countQuery = countQuery.ilike("title", `%${search}%`);
+  }
+  if (status) {
+    dataQuery = dataQuery.eq("status", status);
+    countQuery = countQuery.eq("status", status);
+  }
+
+  const [
+    { data, error },
+    { count, error: countError },
+  ] = await Promise.all([
+    dataQuery.order("updated_at", { ascending: false }).range((page - 1) * limit, page * limit - 1),
+    countQuery,
+  ]);
 
   if (error) throw new Error(error.message);
+  if (countError) throw new Error(countError.message);
 
   const total = count ?? 0;
   const totalPages = Math.ceil(total / limit);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="p-4 lg:p-7 flex flex-col gap-5">
+      <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Chamados — Global</h1>
-          <p className="text-sm text-gray-500">{total} chamados em todas as empresas</p>
+          <h1 className="text-[20px] lg:text-[22px] font-extrabold text-gray-900">Chamados</h1>
+          <p className="text-[13px] text-gray-500 mt-0.5">{total} chamados em todas as empresas</p>
         </div>
-        <form method="GET" className="flex gap-2">
-          <input
-            name="search"
-            defaultValue={search}
-            placeholder="Buscar chamado..."
-            className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400"
-          />
+        <form method="GET" className="flex flex-wrap gap-2">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <input
+              name="search"
+              defaultValue={search}
+              placeholder="Buscar chamado..."
+              className="h-9 w-60 rounded-lg border border-gray-300 pl-9 pr-3 text-sm text-gray-900 outline-none focus:border-[var(--brand-primary)] focus:shadow-[0_0_0_3px_rgba(3,99,169,0.12)]"
+            />
+          </div>
           <select
             name="status"
             defaultValue={status}
-            className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 focus:outline-none"
+            className="h-9 rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 outline-none focus:border-[var(--brand-primary)]"
           >
             <option value="">Todos os status</option>
             <option value="open">Aberto</option>
@@ -71,24 +88,30 @@ export default async function SATicketsPage({
             <option value="resolved">Resolvido</option>
             <option value="closed">Fechado</option>
           </select>
-          <button type="submit" className="rounded-lg bg-gray-900 px-3 py-1.5 text-sm text-white hover:bg-gray-800">
+          <button
+            type="submit"
+            className="h-9 rounded-lg bg-[var(--brand-primary)] px-4 text-[13px] font-semibold text-white hover:opacity-90"
+          >
             Buscar
           </button>
         </form>
       </div>
 
-      <Card>
-        <CardContent className="p-0">
+      <div
+        className="bg-white border border-gray-200 rounded-xl overflow-hidden"
+        style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}
+      >
+        <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50">
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Empresa</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Título</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Status</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Prioridade</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Equipamento</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Responsável</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Atualizado</th>
+                <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wide text-gray-500">Empresa</th>
+                <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wide text-gray-500">Título</th>
+                <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wide text-gray-500">Status</th>
+                <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wide text-gray-500">Prioridade</th>
+                <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wide text-gray-500">Equipamento</th>
+                <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wide text-gray-500">Responsável</th>
+                <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wide text-gray-500">Atualizado</th>
               </tr>
             </thead>
             <tbody>
@@ -100,7 +123,7 @@ export default async function SATicketsPage({
                 </tr>
               ) : (
                 (data ?? []).map((ticket) => (
-                  <tr key={ticket.id} className="border-b border-gray-50 hover:bg-gray-50">
+                  <tr key={ticket.id} className="border-b border-gray-50 hover:bg-gray-50/70">
                     <td className="px-4 py-3 text-xs text-gray-500">{ticket.company?.name}</td>
                     <td className="px-4 py-3 font-medium text-gray-900 max-w-xs truncate">{ticket.title}</td>
                     <td className="px-4 py-3"><TicketStatusBadge status={ticket.status} /></td>
@@ -113,6 +136,7 @@ export default async function SATicketsPage({
               )}
             </tbody>
           </table>
+        </div>
           {totalPages > 1 && (
             <div className="flex items-center justify-between border-t border-gray-100 px-4 py-3 text-sm text-gray-500">
               <span>Página {page} de {totalPages}</span>
@@ -126,8 +150,7 @@ export default async function SATicketsPage({
               </div>
             </div>
           )}
-        </CardContent>
-      </Card>
+      </div>
     </div>
   );
 }

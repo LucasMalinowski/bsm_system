@@ -2,7 +2,7 @@ import { getServerSession } from "@/lib/auth/get-session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createDocumentService } from "@/lib/services/document.service";
 import { can, PERMISSIONS } from "@/lib/auth/permissions";
-import { redirect, notFound } from "next/navigation";
+import { forbidden, redirect, notFound } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDateTime, formatFileSize } from "@/lib/utils/format";
 import Link from "next/link";
@@ -16,7 +16,7 @@ export default async function DocumentDetailPage({
   const { id } = await params;
   const user = await getServerSession();
   if (!user) redirect("/login");
-  if (!can(user, PERMISSIONS.DOCUMENT_READ)) redirect("/dashboard");
+  if (!can(user, PERMISSIONS.DOCUMENT_READ)) forbidden();
 
   const supabase = await createSupabaseServerClient();
   const service = createDocumentService(supabase);

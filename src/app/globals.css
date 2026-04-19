@@ -11,19 +11,70 @@
 }
 
 :root {
-  --background: #f9fafb;
-  --foreground: #111827;
-  --brand-primary: #0363a9;
+  /* Brand */
+  --brand-primary:   #0363a9;
   --brand-secondary: #008adb;
-  --brand-accent: #e0f0fb;
-  --sidebar-bg: #0363a9;
-  --sidebar-text: #ffffff;
-  --sidebar-hover: rgba(255, 255, 255, 0.12);
-  --sidebar-active: rgba(255, 255, 255, 0.2);
+  --brand-accent:    #e0f0fb;
+
+  /* Surfaces */
+  --background: #f9fafb;
+  --surface:    #ffffff;
+  --foreground: #111827;
+  --border:     #e5e7eb;
+
+  /* Text */
+  --text-primary:   #111827;
+  --text-secondary: #6b7280;
+  --text-tertiary:  #9ca3af;
+  --text-disabled:  #d1d5db;
+
+  /* Status */
+  --success-bg:   #dcfce7; --success-text: #166534;
+  --warning-bg:   #fef9c3; --warning-text: #854d0e;
+  --error-bg:     #fee2e2; --error-text:   #b91c1c;
+  --info-bg:      #dbeafe; --info-text:    #1e40af;
+  --neutral-bg:   #f3f4f6; --neutral-text: #374151;
+
+  /* Sidebar */
+  --sidebar-bg:     #0363a9;
+  --sidebar-text:   #ffffff;
+  --sidebar-hover:  rgba(255,255,255,0.12);
+  --sidebar-active: rgba(255,255,255,0.20);
+
+  /* Shadows */
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.05);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+  --shadow-lg: 0 25px 60px rgba(0,0,0,0.12);
+
+  /* Radius */
+  --radius-sm:   6px;
+  --radius-md:   8px;
+  --radius-lg:   12px;
+  --radius-xl:   14px;
+  --radius-full: 9999px;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+
+/* Focus ring */
+:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 2px;
+}
+
+/* Input focus */
+.bsm-input:focus {
+  border-color: var(--brand-primary) !important;
+  box-shadow: 0 0 0 3px rgba(3,99,169,0.12) !important;
 }

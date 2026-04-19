@@ -7,6 +7,8 @@ import { themeToCssVars, DEFAULT_THEME } from "@/lib/theme/css-vars";
 import { SessionProvider } from "@/components/providers/session-provider";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { Sidebar } from "@/components/layout/sidebar";
+import { MobileNav } from "@/components/layout/mobile-nav";
+import { Topbar } from "@/components/layout/topbar";
 import { ImpersonationBanner } from "@/components/layout/impersonation-banner";
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
@@ -16,7 +18,6 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   const supabase = await createSupabaseServerClient();
   const companyService = createCompanyService(supabase);
 
-  // Load company theme for SSR injection
   let theme = DEFAULT_THEME;
   let impersonatedCompanyName: string | null = null;
 
@@ -42,15 +43,25 @@ export default async function DashboardLayout({ children }: { children: ReactNod
       <ThemeProvider theme={theme}>
         {/* SSR theme injection to prevent FOUC */}
         <style>{`:root { ${cssVars} }`}</style>
-        <div className="flex h-screen overflow-hidden">
+
+        <div className="flex h-screen overflow-hidden bg-[var(--background)]">
+          {/* Desktop sidebar */}
           <Sidebar />
+
+          {/* Main area */}
           <div className="flex flex-1 flex-col overflow-hidden">
             {impersonatedCompanyName && (
               <ImpersonationBanner companyName={impersonatedCompanyName} />
             )}
-            <main className="flex-1 overflow-y-auto p-6">{children}</main>
+            <Topbar />
+            <main className="flex-1 overflow-y-auto pb-20 lg:pb-0">
+              {children}
+            </main>
           </div>
         </div>
+
+        {/* Mobile bottom navigation */}
+        <MobileNav />
       </ThemeProvider>
     </SessionProvider>
   );

@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import withPWAInit from "@ducanh2912/next-pwa";
+import path from "node:path";
 
 const withPWA = withPWAInit({
   dest: "public",
@@ -13,10 +14,9 @@ const withPWA = withPWAInit({
 });
 
 const nextConfig: NextConfig = {
-  // Silence Turbopack warning: next-pwa adds a webpack config but turbopack
-  // doesn't need it. root anchors the workspace to this project directory.
-  turbopack: {
-    root: __dirname,
+  outputFileTracingRoot: path.resolve(process.cwd()),
+  experimental: {
+    authInterrupts: true,
   },
   images: {
     remotePatterns: [
