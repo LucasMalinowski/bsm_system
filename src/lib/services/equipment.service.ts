@@ -9,7 +9,7 @@ import type { PaginatedResponse } from "@/types";
 export class EquipmentService {
   constructor(private supabase: SupabaseClient) {}
 
-  async list(companyId: string, filters: EquipmentFilterInput): Promise<PaginatedResponse<Equipment>> {
+  async list(companyId: string | null, filters: EquipmentFilterInput): Promise<PaginatedResponse<Equipment>> {
     const repo = createEquipmentRepository(this.supabase);
     const { data, count } = await repo.findFiltered(companyId, filters);
     const page = filters.page ?? 1;

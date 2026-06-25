@@ -7,7 +7,7 @@ export class DocumentRepository extends BaseRepository<Document> {
   protected tableName = "documents";
 
   async findFiltered(
-    companyId: string,
+    companyId: string | null,
     filters: DocumentFilterInput,
     employeeOnly = false
   ): Promise<{ data: Document[]; count: number }> {
@@ -20,8 +20,9 @@ export class DocumentRepository extends BaseRepository<Document> {
         category:document_categories(id,name),
         uploader:profiles!documents_uploaded_by_fkey(name),
         equipment:equipment(name,internal_code)
-      `, { count: "exact" })
-      .eq("company_id", companyId);
+      `, { count: "exact" });
+
+    if (companyId) query = query.eq("company_id", companyId);
 
     if (employeeOnly) query = query.eq("visible_to_employees", true);
     if (search) query = query.ilike("name", `%${search}%`);

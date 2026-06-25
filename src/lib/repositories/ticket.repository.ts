@@ -7,7 +7,7 @@ export class TicketRepository extends BaseRepository<Ticket> {
   protected tableName = "tickets";
 
   async findFiltered(
-    companyId: string,
+    companyId: string | null,
     filters: TicketFilterInput
   ): Promise<{ data: Ticket[]; count: number }> {
     const { page = 1, limit = 20, search, status, priority, assigned_to, equipment_id, sort = "updated_at", order = "desc" } = filters;
@@ -19,8 +19,9 @@ export class TicketRepository extends BaseRepository<Ticket> {
         equipment:equipment(id,name,internal_code),
         creator:profiles!tickets_created_by_fkey(name),
         assignee:profiles!tickets_assigned_to_fkey(name,avatar_url)
-      `, { count: "exact" })
-      .eq("company_id", companyId);
+      `, { count: "exact" });
+
+    if (companyId) query = query.eq("company_id", companyId);
 
     if (search) query = query.ilike("title", `%${search}%`);
     if (status) query = query.eq("status", status);

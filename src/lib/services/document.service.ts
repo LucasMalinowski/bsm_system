@@ -7,7 +7,7 @@ import type { UploadDocumentInput, UpdateDocumentInput, DocumentFilterInput } fr
 export class DocumentService {
   constructor(private supabase: SupabaseClient) {}
 
-  async list(companyId: string, filters: DocumentFilterInput, employeeOnly = false): Promise<PaginatedResponse<Document>> {
+  async list(companyId: string | null, filters: DocumentFilterInput, employeeOnly = false): Promise<PaginatedResponse<Document>> {
     const repo = createDocumentRepository(this.supabase);
     const { data, count } = await repo.findFiltered(companyId, filters, employeeOnly);
     const page = filters.page ?? 1;

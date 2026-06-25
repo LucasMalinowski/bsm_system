@@ -22,7 +22,7 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
 export class TicketService {
   constructor(private supabase: SupabaseClient) {}
 
-  async list(companyId: string, filters: TicketFilterInput): Promise<PaginatedResponse<Ticket>> {
+  async list(companyId: string | null, filters: TicketFilterInput): Promise<PaginatedResponse<Ticket>> {
     const repo = createTicketRepository(this.supabase);
     const { data, count } = await repo.findFiltered(companyId, filters);
     const page = filters.page ?? 1;

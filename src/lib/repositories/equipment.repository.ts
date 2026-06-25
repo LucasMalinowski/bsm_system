@@ -28,7 +28,7 @@ export class EquipmentRepository extends BaseRepository<Equipment> {
   }
 
   async findFiltered(
-    companyId: string,
+    companyId: string | null,
     filters: EquipmentFilterInput
   ): Promise<{ data: Equipment[]; count: number }> {
     const { page = 1, limit = 20, search, status, category_id, sort = "updated_at", order = "desc" } = filters;
@@ -36,8 +36,9 @@ export class EquipmentRepository extends BaseRepository<Equipment> {
     let query = this.supabase
       .from("equipment")
       .select("*, category:equipment_categories(id,name)", { count: "exact" })
-      .eq("company_id", companyId)
       .is("deleted_at", null);
+
+    if (companyId) query = query.eq("company_id", companyId);
 
     if (search) {
       query = query.or(`name.ilike.%${search}%,internal_code.ilike.%${search}%,serial_number.ilike.%${search}%`);

@@ -15,15 +15,11 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const filters = ticketFilterSchema.parse(Object.fromEntries(searchParams));
 
-    // SA without impersonation can pass company_id as query param
-    const companyId =
+    // SA without a company sees all; SA impersonating a company is scoped to it
+    const companyId: string | null =
       isSuperAdmin(user) && !user.company_id
-        ? (searchParams.get("company_id") ?? "")
-        : user.company_id ?? "";
-
-    if (!companyId) {
-      return NextResponse.json({ data: [], pagination: { page: 1, limit: 20, total: 0, total_pages: 0 } });
-    }
+        ? (searchParams.get("company_id") ?? null)
+        : user.company_id ?? null;
 
     const supabase = await createSupabaseServerClient();
     const service = createTicketService(supabase);
