@@ -18,6 +18,7 @@ export interface Document {
   version: number;
   equipment_id: string | null;
   uploaded_by: string;
+  visible_to_employees: boolean;
   created_at: string;
   updated_at: string;
   category?: DocumentCategory;
@@ -49,4 +50,5 @@ export interface UpdateDocumentDTO {
   description?: string | null;
   category_id?: string | null;
   equipment_id?: string | null;
+  visible_to_employees?: boolean;
 }

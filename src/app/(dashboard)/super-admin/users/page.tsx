@@ -117,25 +117,26 @@ export default async function SAUsersPage({
                 <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wide text-gray-500">Perfil</th>
                 <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wide text-gray-500">Status</th>
                 <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wide text-gray-500">Cadastrado</th>
+                <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wide text-gray-500">Ações</th>
               </tr>
             </thead>
             <tbody>
               {(data ?? []).length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-12 text-center text-gray-400">
+                  <td colSpan={6} className="px-4 py-12 text-center text-gray-400">
                     Nenhum usuário encontrado
                   </td>
                 </tr>
               ) : (
-                (data ?? []).map((u) => (
+                ((data ?? []) as any[]).map((u) => (
                   <tr key={u.id} className="border-b border-gray-50 hover:bg-gray-50/70">
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
+                      <Link href={`/super-admin/users/${u.id}`} className="flex items-center gap-3 group">
                         <Avatar name={u.name} src={u.avatar_url} size="sm" />
                         <div className="min-w-0">
-                          <p className="truncate font-medium text-gray-900">{u.name}</p>
+                          <p className="truncate font-medium text-gray-900 group-hover:text-[var(--brand-primary)]">{u.name}</p>
                         </div>
-                      </div>
+                      </Link>
                     </td>
                     <td className="px-4 py-3 text-xs text-gray-500">{u.company?.name ?? "—"}</td>
                     <td className="px-4 py-3">
@@ -149,6 +150,14 @@ export default async function SAUsersPage({
                       </Badge>
                     </td>
                     <td className="px-4 py-3 text-gray-400">{formatDateTime(u.created_at)}</td>
+                    <td className="px-4 py-3">
+                      <Link
+                        href={`/super-admin/users/${u.id}`}
+                        className="h-7 px-2.5 rounded-lg text-[11px] font-medium text-[#0363a9] border border-[#0363a9] bg-white hover:bg-blue-50 transition-colors inline-flex items-center"
+                      >
+                        Editar
+                      </Link>
+                    </td>
                   </tr>
                 ))
               )}

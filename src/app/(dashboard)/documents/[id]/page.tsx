@@ -1,10 +1,13 @@
 import { getServerSession } from "@/lib/auth/get-session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createDocumentService } from "@/lib/services/document.service";
-import { can, PERMISSIONS } from "@/lib/auth/permissions";
+import { can, isAdmin, isSuperAdmin, PERMISSIONS } from "@/lib/auth/permissions";
 import { forbidden, redirect, notFound } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDateTime, formatFileSize } from "@/lib/utils/format";
+import { VisibilityToggle } from "@/components/documents/visibility-toggle";
+import { DocumentDeleteButton } from "@/components/documents/document-delete-button";
+import { UploadVersionButton } from "@/components/documents/upload-version-button";
 import Link from "next/link";
 import { ArrowLeft, Download, FileText } from "lucide-react";
 
@@ -20,7 +23,7 @@ export default async function DocumentDetailPage({
 
   const supabase = await createSupabaseServerClient();
   const service = createDocumentService(supabase);
-  const doc = await service.getById(id);
+  const doc = await service.getById(id, user.company_id, isSuperAdmin(user), user.role === "employee");
 
   if (!doc) notFound();
 
@@ -68,12 +71,39 @@ export default async function DocumentDetailPage({
         </CardContent>
       </Card>
 
-      {doc.versions && doc.versions.length > 0 && (
+      {(isAdmin(user) || isSuperAdmin(user)) && (
         <Card>
           <CardHeader>
-            <CardTitle>Histórico de Versões</CardTitle>
+            <CardTitle>Visibilidade</CardTitle>
           </CardHeader>
           <CardContent>
+            <VisibilityToggle documentId={id} initialValue={(doc as { visible_to_employees?: boolean }).visible_to_employees ?? false} />
+          </CardContent>
+        </Card>
+      )}
+
+      {can(user, PERMISSIONS.DOCUMENT_DELETE) && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Ações</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <DocumentDeleteButton documentId={id} documentName={doc.name} />
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle>Histórico de Versões</CardTitle>
+            {can(user, PERMISSIONS.DOCUMENT_UPDATE) && (
+              <UploadVersionButton documentId={id} />
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {doc.versions && doc.versions.length > 0 ? (
             <ol className="space-y-3">
               {doc.versions.map((v) => (
                 <li key={v.id} className="flex items-center justify-between text-sm">
@@ -87,9 +117,11 @@ export default async function DocumentDetailPage({
                 </li>
               ))}
             </ol>
-          </CardContent>
-        </Card>
-      )}
+          ) : (
+            <p className="text-sm text-gray-400">Nenhuma versão registrada</p>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

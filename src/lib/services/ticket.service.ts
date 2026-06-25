@@ -1,6 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createTicketRepository } from "@/lib/repositories/ticket.repository";
 import { createAuditService } from "@/lib/services/audit.service";
+import { createNotificationService } from "@/lib/services/notification.service";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { Ticket, TicketComment, PaginatedResponse } from "@/types";
 import type {
   CreateTicketInput,
@@ -44,6 +46,7 @@ export class TicketService {
   async create(companyId: string, userId: string, input: CreateTicketInput): Promise<Ticket> {
     const repo = createTicketRepository(this.supabase);
     const audit = createAuditService(this.supabase);
+    const notif = createNotificationService(this.supabase);
 
     const ticket = await repo.create({
       ...input,
@@ -62,6 +65,13 @@ export class TicketService {
       newData: input as Record<string, unknown>,
     });
 
+    await notif.notifyAdminsOfTicket(
+      companyId,
+      ticket.title,
+      ticket.id,
+      ticket.is_support_request ?? false
+    ).catch(console.error);
+
     return ticket;
   }
 
@@ -69,13 +79,14 @@ export class TicketService {
     const repo = createTicketRepository(this.supabase);
     const audit = createAuditService(this.supabase);
 
-    if (input.status) {
-      const current = await repo.findById(id);
-      if (!current) throw new Error("Ticket not found");
+    // Fetch the current ticket once — used for both validation and audit diff.
+    const before = await repo.findById(id);
+    if (!before) throw new Error("Ticket not found");
 
-      const allowed = VALID_TRANSITIONS[current.status] ?? [];
+    if (input.status) {
+      const allowed = VALID_TRANSITIONS[before.status] ?? [];
       if (!allowed.includes(input.status)) {
-        throw new Error(`Cannot transition from "${current.status}" to "${input.status}"`);
+        throw new Error(`Cannot transition from "${before.status}" to "${input.status}"`);
       }
 
       if (input.status === "resolved") {
@@ -83,7 +94,6 @@ export class TicketService {
       }
     }
 
-    const before = await repo.findById(id);
     const ticket = await repo.update(id, input);
 
     await audit.log({
@@ -96,6 +106,41 @@ export class TicketService {
       oldData: before as unknown as Record<string, unknown>,
       newData: input as Record<string, unknown>,
     });
+
+    if (input.assigned_to && input.assigned_to !== before?.assigned_to) {
+      const notif = createNotificationService(this.supabase);
+      await notif.create({
+        user_id: input.assigned_to,
+        type: "ticket_assigned",
+        title: "Chamado atribuído a você",
+        body: `O chamado "${ticket.title}" foi atribuído a você.`,
+        metadata: { ticket_id: id },
+      }).catch(console.error);
+    }
+
+    if (input.status && before?.created_by && before.created_by !== userId) {
+      const { data: creator } = await this.supabase
+        .from("profiles")
+        .select("id, name")
+        .eq("id", before.created_by)
+        .single();
+
+      if (creator) {
+        const adminClient = createSupabaseAdminClient();
+        const { data: { user: authUser } } = await adminClient.auth.admin.getUserById(before.created_by);
+        const creatorEmail = authUser?.email ?? "";
+
+        const notif = createNotificationService(this.supabase);
+        await notif.notifyTicketStatusChange(
+          creator.id,
+          creatorEmail,
+          creator.name,
+          ticket.title,
+          id,
+          input.status
+        ).catch(console.error);
+      }
+    }
 
     return ticket;
   }

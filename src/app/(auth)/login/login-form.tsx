@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { loginSchema, type LoginInput } from "@/lib/validations/auth.schemas";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import Link from "next/link";
 
 const MailIcon = () => (
@@ -35,7 +35,6 @@ const EyeOffIcon = () => (
 );
 
 export function LoginForm() {
-  const router = useRouter();
   const [serverError, setServerError] = useState<string | null>(null);
   const [showPass, setShowPass] = useState(false);
 
@@ -50,30 +49,24 @@ export function LoginForm() {
   const onSubmit = async (data: LoginInput) => {
     setServerError(null);
 
-    let response: Response;
-    try {
-      response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(data),
-      });
-    } catch {
-      setServerError("Nao foi possivel conectar. Tente novamente.");
+    const supabase = createSupabaseBrowserClient();
+    const { error } = await supabase.auth.signInWithPassword({
+      email: data.email,
+      password: data.password,
+    });
+
+    if (error) {
+      if (error.message === "Invalid login credentials") {
+        setServerError("E-mail ou senha incorretos");
+      } else if (error.message === "fetch failed" || error.status === 0) {
+        setServerError("Nao foi possivel conectar ao Supabase. Verifique sua internet.");
+      } else {
+        setServerError(error.message || "Nao foi possivel entrar agora. Tente novamente.");
+      }
       return;
     }
 
-    if (!response.ok) {
-      const payload = (await response.json().catch(() => null)) as
-        | { error?: string }
-        | null;
-      setServerError(payload?.error ?? "Nao foi possivel entrar agora. Tente novamente.");
-      return;
-    }
-
-    router.push("/dashboard");
-    router.refresh();
+    window.location.href = "/dashboard";
   };
 
   const inputBase =
@@ -82,7 +75,7 @@ export function LoginForm() {
     "focus:border-white/50 focus:bg-white/15 focus:shadow-[0_0_0_3px_rgba(255,255,255,0.08)]";
 
   return (
-    <div className="flex flex-col gap-4">
+    <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
       {/* Email */}
       <div className="flex flex-col gap-1.5">
         <label className="text-[13px] font-semibold text-white/80">E-mail</label>
@@ -140,8 +133,7 @@ export function LoginForm() {
       )}
 
       <button
-        type="button"
-        onClick={handleSubmit(onSubmit)}
+        type="submit"
         disabled={isSubmitting}
         className="mt-1 h-[52px] rounded-[12px] border-none text-base font-bold text-white transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
         style={{
@@ -163,6 +155,6 @@ export function LoginForm() {
           </div>
         ))}
       </div>
-    </div>
+    </form>
   );
 }

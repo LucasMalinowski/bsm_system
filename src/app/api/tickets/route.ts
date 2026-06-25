@@ -3,7 +3,7 @@ import { getServerSession } from "@/lib/auth/get-session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createTicketService } from "@/lib/services/ticket.service";
 import { ticketFilterSchema, createTicketSchema } from "@/lib/validations/ticket.schemas";
-import { can, PERMISSIONS } from "@/lib/auth/permissions";
+import { can, PERMISSIONS, isSuperAdmin } from "@/lib/auth/permissions";
 import { handleApiError, unauthorizedResponse, forbiddenResponse } from "@/lib/utils/errors";
 
 export async function GET(request: NextRequest) {
@@ -15,9 +15,19 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const filters = ticketFilterSchema.parse(Object.fromEntries(searchParams));
 
+    // SA without impersonation can pass company_id as query param
+    const companyId =
+      isSuperAdmin(user) && !user.company_id
+        ? (searchParams.get("company_id") ?? "")
+        : user.company_id ?? "";
+
+    if (!companyId) {
+      return NextResponse.json({ data: [], pagination: { page: 1, limit: 20, total: 0, total_pages: 0 } });
+    }
+
     const supabase = await createSupabaseServerClient();
     const service = createTicketService(supabase);
-    const result = await service.list(user.company_id!, filters);
+    const result = await service.list(companyId, filters);
 
     return NextResponse.json(result);
   } catch (err) {
@@ -34,9 +44,17 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const input = createTicketSchema.parse(body);
 
+    // SA without impersonation: use company_id from body
+    const companyId =
+      isSuperAdmin(user) && !user.company_id
+        ? (input.company_id ?? null)
+        : user.company_id;
+
+    if (!companyId) return forbiddenResponse("company_id required");
+
     const supabase = await createSupabaseServerClient();
     const service = createTicketService(supabase);
-    const ticket = await service.create(user.company_id!, user.id, input);
+    const ticket = await service.create(companyId, user.id, input);
 
     return NextResponse.json({ data: ticket }, { status: 201 });
   } catch (err) {

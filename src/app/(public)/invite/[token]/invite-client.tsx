@@ -13,7 +13,10 @@ interface InviteClientProps {
   companyName: string;
 }
 
-type Stage = "loading" | "awaiting_session" | "form" | "submitting" | "done" | "error";
+type Stage = "loading" | "awaiting_session" | "hash_timeout" | "form" | "submitting" | "done" | "error";
+
+const SESSION_POLL_ATTEMPTS = 6;
+const SESSION_POLL_INTERVAL_MS = 500;
 
 export function InviteClient({ token, email, companyName }: InviteClientProps) {
   const router = useRouter();
@@ -28,24 +31,48 @@ export function InviteClient({ token, email, companyName }: InviteClientProps) {
 
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
+    let cancelled = false;
+    let resolved = false;
 
-    // onAuthStateChange fires when Supabase detects the access_token hash from the email link
+    const resolveWithSession = () => {
+      if (cancelled || resolved) return;
+      resolved = true;
+      setStage("form");
+    };
+
+    // onAuthStateChange fires asynchronously once Supabase parses the access_token
+    // hash from the invite link — but the hash may not be parsed yet on first render,
+    // so this is a safety net rather than the only source of truth (see polling below).
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event: AuthChangeEvent, session: Session | null) => {
-        if (session) {
-          setStage("form");
-        } else if (event === "INITIAL_SESSION" && !session) {
-          setStage("awaiting_session");
-        }
+      (_event: AuthChangeEvent, session: Session | null) => {
+        if (session) resolveWithSession();
       }
     );
 
-    // Also check if there's already an active session
-    supabase.auth.getSession().then(({ data }: { data: { session: Session | null } }) => {
-      if (data.session) setStage("form");
-    });
+    const hasAccessTokenHash = window.location.hash.includes("access_token");
 
-    return () => subscription.unsubscribe();
+    // Poll getSession() for a few seconds before giving up — avoids a permanent
+    // "check your email" dead end when the hash is present but the browser client
+    // just hasn't finished parsing/persisting it yet (slow init, ad blockers, etc.)
+    (async () => {
+      for (let attempt = 0; attempt < SESSION_POLL_ATTEMPTS; attempt++) {
+        if (cancelled || resolved) return;
+        const { data } = await supabase.auth.getSession();
+        if (data.session) {
+          resolveWithSession();
+          return;
+        }
+        await new Promise((r) => setTimeout(r, SESSION_POLL_INTERVAL_MS));
+      }
+      if (!cancelled && !resolved) {
+        setStage(hasAccessTokenHash ? "hash_timeout" : "awaiting_session");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const handleAvatar = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -112,6 +139,34 @@ export function InviteClient({ token, email, companyName }: InviteClientProps) {
           <p className="mt-4 text-xs text-gray-400">
             Se já clicou no link, tente reabri-lo no mesmo navegador.
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (stage === "hash_timeout") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-teal-50 via-white to-slate-100 p-4">
+        <div className="w-full max-w-sm rounded-2xl bg-white p-8 shadow-lg text-center">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-amber-100">
+            <svg className="h-7 w-7 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <h1 className="text-xl font-bold text-gray-900">Não foi possível confirmar seu acesso</h1>
+          <p className="mt-2 text-sm text-gray-500">
+            Detectamos o link de convite, mas este navegador não conseguiu confirmar sua sessão a tempo.
+          </p>
+          <p className="mt-4 text-xs text-gray-400">
+            Copie o link completo do email (incluindo tudo após o <code className="font-mono">#</code>) e cole-o diretamente na barra de endereço deste navegador, ou tente novamente.
+          </p>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="mt-5 w-full rounded-xl bg-gray-900 py-2.5 text-sm font-semibold text-white hover:bg-gray-800 transition-colors"
+          >
+            Tentar novamente
+          </button>
         </div>
       </div>
     );

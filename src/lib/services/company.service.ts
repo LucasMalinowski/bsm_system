@@ -87,34 +87,54 @@ export class CompanyService {
       if (removeError) throw new Error(`Failed to remove ${bucket} files: ${removeError.message}`);
     };
 
+    // Delete everything that can't be safely retried via FK cascade FIRST, while the
+    // company row still exists. If this fails partway, the company is still there and
+    // the whole operation can just be retried — nothing is left half-deleted.
+    const authDeletions = await Promise.allSettled(
+      profileIds.map((profileId) => admin.auth.admin.deleteUser(profileId))
+    );
+    const authFailures = authDeletions
+      .map((result, i) => ({ result, profileId: profileIds[i] }))
+      .filter(({ result }) => result.status === "rejected" || (result.status === "fulfilled" && result.value.error));
+
+    if (authFailures.length > 0) {
+      authFailures.forEach(({ result, profileId }) => {
+        const reason = result.status === "rejected" ? result.reason : result.value.error?.message;
+        console.error(`Failed to delete Supabase Auth user ${profileId} during company cleanup`, reason);
+      });
+      throw new Error(
+        `Falha ao remover ${authFailures.length} usuário(s) da empresa. Nenhuma alteração foi feita — tente novamente.`
+      );
+    }
+
+    // auth.users delete cascades to profiles (profiles.id references auth.users.id on
+    // delete cascade), but clean up explicitly by id too as a safety net.
+    if (profileIds.length > 0) {
+      const { error: profileDeleteError } = await admin
+        .from("profiles")
+        .delete()
+        .in("id", profileIds);
+      if (profileDeleteError) throw new Error(profileDeleteError.message);
+    }
+
     const { error: auditError } = await admin
       .from("audit_logs")
       .delete()
       .eq("company_id", id);
     if (auditError) throw new Error(auditError.message);
 
-    await repo.delete(id);
-
-    const authDeletions = await Promise.allSettled(
-      profileIds.map((profileId) => admin.auth.admin.deleteUser(profileId))
+    const storageResults = await Promise.allSettled(
+      cleanupPrefixes.map(({ bucket, prefix }) => deleteStoragePrefix(bucket, prefix))
     );
-    authDeletions.forEach((result) => {
+    storageResults.forEach((result, i) => {
       if (result.status === "rejected") {
-        console.warn("Failed to delete Supabase Auth user during company cleanup", result.reason);
-      } else if (result.value.error) {
-        console.warn("Supabase Auth user delete returned an error during company cleanup", result.value.error.message);
+        console.warn(`Failed to clean up storage bucket ${cleanupPrefixes[i].bucket} during company cleanup`, result.reason);
       }
     });
 
-    const { error: profileDeleteError } = await admin
-      .from("profiles")
-      .delete()
-      .eq("company_id", id);
-    if (profileDeleteError) throw new Error(profileDeleteError.message);
-
-    await Promise.allSettled(
-      cleanupPrefixes.map(({ bucket, prefix }) => deleteStoragePrefix(bucket, prefix))
-    );
+    // Company row deleted last: by this point nothing else still depends on it, so this
+    // step can't leave anything orphaned.
+    await repo.delete(id);
   }
 }
 

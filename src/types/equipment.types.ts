@@ -13,6 +13,13 @@ export interface EquipmentCategory {
   created_at: string;
 }
 
+export type CalibrationPeriodicity =
+  | "semestral"
+  | "anual"
+  | "bi_anual"
+  | "tri_anual"
+  | "outro";
+
 export interface Equipment {
   id: string;
   company_id: string;
@@ -22,6 +29,8 @@ export interface Equipment {
   brand: string | null;
   model: string | null;
   serial_number: string | null;
+  tag: string | null;
+  scale: string | null;
   status: EquipmentStatus;
   location: string | null;
   acquisition_date: string | null;
@@ -30,8 +39,11 @@ export interface Equipment {
   notes: string | null;
   qr_code_token: string;
   image_url: string | null;
+  requires_calibration: boolean;
+  calibration_periodicity: CalibrationPeriodicity | null;
   created_at: string;
   updated_at: string;
+  deleted_at: string | null;
   category?: EquipmentCategory;
 }
 
@@ -53,12 +65,17 @@ export interface CreateEquipmentDTO {
   brand?: string | null;
   model?: string | null;
   serial_number?: string | null;
+  tag?: string | null;
+  scale?: string | null;
   status?: EquipmentStatus;
   location?: string | null;
   acquisition_date?: string | null;
   last_calibration?: string | null;
   next_calibration?: string | null;
   notes?: string | null;
+  image_url?: string | null;
+  requires_calibration?: boolean;
+  calibration_periodicity?: CalibrationPeriodicity | null;
 }
 
 export interface UpdateEquipmentDTO extends Partial<CreateEquipmentDTO> {}

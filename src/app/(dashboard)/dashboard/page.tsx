@@ -59,7 +59,7 @@ export default async function DashboardPage() {
   const supabase = await createSupabaseServerClient();
 
   /* ── Super admin view ── */
-  if (user?.role === "super_admin") {
+  if (user?.role === "super_admin" && !user.impersonating) {
     const admin = createSupabaseAdminClient();
     const companyService = createCompanyService(admin);
 
@@ -276,14 +276,15 @@ export default async function DashboardPage() {
     const equipmentService = createEquipmentService(supabase);
     const ticketService = createTicketService(supabase);
 
-    const [equipmentResult, equipmentAll, counts, ticketsResult] = await Promise.all([
-      equipmentService.list(user.company_id, { page: 1, limit: 1, sort: "updated_at", order: "desc" }),
+    // Single equipment fetch: use limit:20 for both total count and recent items.
+    // The pagination.total from this query gives us the real total via count:"exact".
+    const [equipmentAll, counts, ticketsResult] = await Promise.all([
       equipmentService.list(user.company_id, { page: 1, limit: 20, sort: "updated_at", order: "desc" }),
       ticketService.getStatusCounts(user.company_id),
       ticketService.list(user.company_id, { page: 1, limit: 10, sort: "updated_at", order: "desc" }),
     ]);
 
-    equipmentCount = equipmentResult.pagination.total;
+    equipmentCount = equipmentAll.pagination.total;
     ticketCounts = counts;
     recentEquipment = (equipmentAll.data as Array<{ id: string; internal_code: string; name: string; status: string; next_calibration: string | null }>).slice(0, 5);
     calibrationEquipment = (equipmentAll.data as Array<{ id: string; name: string; status: string }>)

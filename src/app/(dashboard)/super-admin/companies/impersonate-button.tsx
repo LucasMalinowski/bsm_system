@@ -1,12 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { LogIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export function ImpersonateButton({ companyId }: { companyId: string }) {
-  const router = useRouter();
   const [loading, setLoading] = useState(false);
 
   const enter = async () => {
@@ -16,8 +14,7 @@ export function ImpersonateButton({ companyId }: { companyId: string }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ company_id: companyId }),
     });
-    router.push("/dashboard");
-    router.refresh();
+    window.location.href = "/dashboard";
   };
 
   return (

@@ -8,7 +8,8 @@ export class DocumentRepository extends BaseRepository<Document> {
 
   async findFiltered(
     companyId: string,
-    filters: DocumentFilterInput
+    filters: DocumentFilterInput,
+    employeeOnly = false
   ): Promise<{ data: Document[]; count: number }> {
     const { page = 1, limit = 20, search, category_id, equipment_id, sort = "updated_at", order = "desc" } = filters;
 
@@ -22,6 +23,7 @@ export class DocumentRepository extends BaseRepository<Document> {
       `, { count: "exact" })
       .eq("company_id", companyId);
 
+    if (employeeOnly) query = query.eq("visible_to_employees", true);
     if (search) query = query.ilike("name", `%${search}%`);
     if (category_id) query = query.eq("category_id", category_id);
     if (equipment_id) query = query.eq("equipment_id", equipment_id);

@@ -1,9 +1,8 @@
 import { getServerSession } from "@/lib/auth/get-session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createEquipmentService } from "@/lib/services/equipment.service";
-import { can, PERMISSIONS } from "@/lib/auth/permissions";
+import { can, isSuperAdmin, PERMISSIONS } from "@/lib/auth/permissions";
 import { forbidden, redirect, notFound } from "next/navigation";
-import { formatDate } from "@/lib/utils/format";
 import { EquipmentDetailClient } from "@/components/equipment/equipment-detail-client";
 
 export default async function EquipmentDetailPage({
@@ -26,7 +25,9 @@ export default async function EquipmentDetailPage({
     <EquipmentDetailClient
       equipment={equipment}
       canCreate={can(user, PERMISSIONS.TICKET_CREATE)}
-      formatDate={formatDate}
+      canUpdate={can(user, PERMISSIONS.EQUIPMENT_UPDATE)}
+      isSuperAdmin={isSuperAdmin(user)}
+      userRole={user.role}
     />
   );
 }

@@ -34,7 +34,8 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     if (!can(user, PERMISSIONS.EQUIPMENT_UPDATE)) return forbiddenResponse();
 
     const body = await request.json();
-    const input = updateEquipmentSchema.parse(body);
+    const { company_id: _cid, ...rest } = body;
+    const input = updateEquipmentSchema.parse(rest);
 
     const supabase = await createSupabaseServerClient();
     const service = createEquipmentService(supabase);

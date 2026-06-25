@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { getServerSession } from "@/lib/auth/get-session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -44,6 +45,9 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     const supabase = await createSupabaseServerClient();
     const service = createCompanyService(supabase);
     const company = await service.update(id, input);
+
+    // Invalidate the cached company theme so the layout picks up the new colors/logo
+    revalidateTag("company-theme", "max");
 
     return NextResponse.json({ data: company });
   } catch (err) {

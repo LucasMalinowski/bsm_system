@@ -8,7 +8,7 @@ import QRCode from "qrcode";
 
 type Params = { params: Promise<{ id: string }> };
 
-export async function GET(_req: NextRequest, { params }: Params) {
+export async function GET(req: NextRequest, { params }: Params) {
   try {
     const { id } = await params;
     const user = await getServerSession();
@@ -21,7 +21,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
     if (!equipment) return notFoundResponse("Equipment not found");
 
-    const qrUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/equipment/qr/${equipment.qr_code_token}`;
+    const qrUrl = `${req.nextUrl.origin}/api/equipment/qr/${equipment.qr_code_token}`;
     const pngBuffer = await QRCode.toBuffer(qrUrl, { type: "png", width: 400, margin: 2 });
 
     return new NextResponse(new Uint8Array(pngBuffer), {

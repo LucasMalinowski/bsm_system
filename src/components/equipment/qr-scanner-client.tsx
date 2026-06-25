@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 
 const CAT_COLORS: Record<string, string> = {
@@ -39,14 +39,50 @@ function timeAgo(ts: number): string {
 export function QRScannerClient() {
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const [scanning, setScanning] = useState(false);
   const [cameraError, setCameraError] = useState(false);
   const [recent, setRecent] = useState<RecentScan[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const processingRef = useRef(false);
 
   useEffect(() => {
     setRecent(getRecentScans());
   }, []);
+
+  const processFrame = useCallback(async () => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas || !streamRef.current || processingRef.current) {
+      if (streamRef.current) rafRef.current = requestAnimationFrame(processFrame);
+      return;
+    }
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx || video.readyState < 2) {
+      rafRef.current = requestAnimationFrame(processFrame);
+      return;
+    }
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    try {
+      const jsQR = (await import("jsqr")).default;
+      const code = jsQR(imageData.data, imageData.width, imageData.height);
+      if (code?.data) {
+        processingRef.current = true;
+        await handleScannedValue(code.data);
+        processingRef.current = false;
+        return;
+      }
+    } catch {/* ignore */}
+
+    rafRef.current = requestAnimationFrame(processFrame);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const startCamera = async () => {
     setCameraError(false);
@@ -58,8 +94,9 @@ export function QRScannerClient() {
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.play();
+        await videoRef.current.play();
       }
+      rafRef.current = requestAnimationFrame(processFrame);
     } catch {
       setCameraError(true);
       setScanning(false);
@@ -67,12 +104,24 @@ export function QRScannerClient() {
   };
 
   const stopCamera = () => {
+    if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
     setScanning(false);
   };
 
-  useEffect(() => () => { stopCamera(); }, []);
+  useEffect(() => () => { stopCamera(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleScannedValue = async (value: string) => {
+    // QR codes encode the full URL — extract the token from the path
+    let token = value;
+    try {
+      const url = new URL(value);
+      const parts = url.pathname.split("/");
+      token = parts[parts.length - 1];
+    } catch {/* not a URL, use as-is */}
+    await handleManualCode(token);
+  };
 
   const handleManualCode = async (code: string) => {
     if (!code.trim()) return;
@@ -130,6 +179,9 @@ export function QRScannerClient() {
             className="absolute inset-0 pointer-events-none"
             style={{ background: "radial-gradient(circle, rgba(3,99,169,0.15) 0%, transparent 70%)" }}
           />
+
+          {/* Hidden canvas for QR decoding */}
+          <canvas ref={canvasRef} className="hidden" />
 
           {/* Video feed */}
           <video

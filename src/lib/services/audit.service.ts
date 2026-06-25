@@ -61,7 +61,7 @@ export class AuditService {
     let dataQuery = this.supabase
       .from("audit_logs")
       .select(
-        "id,action,resource_type,resource_name,created_at, user:profiles(name), company:companies(name)",
+        "id,action,resource_type,resource_name,old_data,new_data,created_at, user:profiles(name), company:companies(name)",
       );
 
     let countQuery = this.supabase
@@ -91,7 +91,7 @@ export class AuditService {
 
     if (error) throw new Error(error.message);
     if (countError) throw new Error(countError.message);
-    return { data: (data ?? []) as AuditLog[], count: count ?? 0 };
+    return { data: (data ?? []) as unknown as AuditLog[], count: count ?? 0 };
   }
 }
 

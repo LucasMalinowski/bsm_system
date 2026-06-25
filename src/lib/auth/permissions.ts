@@ -22,6 +22,9 @@ export const PERMISSIONS = {
   COMPANY_UPDATE: "company:update" as Permission,
   COMPANY_SETTINGS: "company:settings" as Permission,
   REPORT_VIEW: "report:view" as Permission,
+  CALIBRATION_READ: "calibration:read" as Permission,
+  CALIBRATION_MANAGE: "calibration:manage" as Permission,
+  CALIBRATION_REGISTER: "calibration:register" as Permission,
 } as const;
 
 export const DEFAULT_PERMISSIONS_BY_ROLE: Record<UserRole, Permission[]> = {
@@ -37,7 +40,6 @@ export const DEFAULT_PERMISSIONS_BY_ROLE: Record<UserRole, Permission[]> = {
     PERMISSIONS.TICKET_DELETE,
     PERMISSIONS.TICKET_ASSIGN,
     PERMISSIONS.DOCUMENT_READ,
-    PERMISSIONS.DOCUMENT_UPLOAD,
     PERMISSIONS.DOCUMENT_UPDATE,
     PERMISSIONS.DOCUMENT_DELETE,
     PERMISSIONS.USER_READ,
@@ -48,6 +50,8 @@ export const DEFAULT_PERMISSIONS_BY_ROLE: Record<UserRole, Permission[]> = {
     PERMISSIONS.COMPANY_UPDATE,
     PERMISSIONS.COMPANY_SETTINGS,
     PERMISSIONS.REPORT_VIEW,
+    PERMISSIONS.CALIBRATION_READ,
+    PERMISSIONS.CALIBRATION_MANAGE,
   ],
   employee: [
     PERMISSIONS.EQUIPMENT_READ,
@@ -56,6 +60,7 @@ export const DEFAULT_PERMISSIONS_BY_ROLE: Record<UserRole, Permission[]> = {
     PERMISSIONS.TICKET_UPDATE,
     PERMISSIONS.DOCUMENT_READ,
     PERMISSIONS.COMPANY_READ,
+    PERMISSIONS.CALIBRATION_READ,
   ],
 };
 
@@ -78,3 +83,56 @@ export function isSuperAdmin(user: AuthUser | null): boolean {
 export function isAdmin(user: AuthUser | null): boolean {
   return user?.role === "super_admin" || user?.role === "admin";
 }
+
+export const PERMISSION_GROUPS = [
+  {
+    label: "Equipamentos",
+    permissions: [
+      PERMISSIONS.EQUIPMENT_READ,
+      PERMISSIONS.EQUIPMENT_CREATE,
+      PERMISSIONS.EQUIPMENT_UPDATE,
+      PERMISSIONS.EQUIPMENT_DELETE,
+    ],
+    actions: ["Visualizar", "Criar", "Editar", "Excluir"],
+  },
+  {
+    label: "Chamados",
+    permissions: [
+      PERMISSIONS.TICKET_READ,
+      PERMISSIONS.TICKET_CREATE,
+      PERMISSIONS.TICKET_UPDATE,
+      PERMISSIONS.TICKET_DELETE,
+    ],
+    actions: ["Visualizar", "Criar", "Editar", "Excluir"],
+  },
+  {
+    label: "Documentos",
+    permissions: [
+      PERMISSIONS.DOCUMENT_READ,
+      null,
+      PERMISSIONS.DOCUMENT_UPDATE,
+      PERMISSIONS.DOCUMENT_DELETE,
+    ],
+    actions: ["Visualizar", "—", "Editar", "Excluir"],
+  },
+  {
+    label: "Calibração",
+    permissions: [
+      PERMISSIONS.CALIBRATION_READ,
+      null,
+      PERMISSIONS.CALIBRATION_MANAGE,
+      null,
+    ],
+    actions: ["Visualizar", "—", "Gerenciar", "—"],
+  },
+  {
+    label: "Usuários",
+    permissions: [
+      PERMISSIONS.USER_READ,
+      PERMISSIONS.USER_INVITE,
+      PERMISSIONS.USER_UPDATE,
+      PERMISSIONS.USER_DELETE,
+    ],
+    actions: ["Visualizar", "Convidar", "Editar", "Excluir"],
+  },
+] as const;

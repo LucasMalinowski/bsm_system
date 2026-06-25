@@ -26,7 +26,7 @@ function initials(name: string) {
 export default async function UsersPage() {
   const user = await getServerSession();
   if (!user) redirect("/login");
-  if (user.role === "super_admin") redirect("/super-admin/companies");
+  if (user.role === "super_admin" && !user.impersonating) redirect("/super-admin/companies");
   if (!isAdmin(user)) forbidden();
   if (!user.company_id) forbidden();
 

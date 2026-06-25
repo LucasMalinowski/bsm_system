@@ -2,9 +2,10 @@ import { getServerSession } from "@/lib/auth/get-session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createDocumentService } from "@/lib/services/document.service";
 import { documentFilterSchema } from "@/lib/validations/document.schemas";
-import { can, PERMISSIONS } from "@/lib/auth/permissions";
+import { can, isSuperAdmin, PERMISSIONS } from "@/lib/auth/permissions";
 import { forbidden, redirect } from "next/navigation";
 import { formatFileSize, formatDate } from "@/lib/utils/format";
+import { DocumentRowActions } from "@/components/documents/document-row-actions";
 import Link from "next/link";
 
 function initials(name: string) {
@@ -26,7 +27,7 @@ export default async function DocumentsPage({
 
   const supabase = await createSupabaseServerClient();
   const service = createDocumentService(supabase);
-  const result = await service.list(user.company_id, filters);
+  const result = await service.list(user.company_id, filters, user.role === "employee");
 
   return (
     <div className="p-4 lg:p-7 flex flex-col gap-5">
@@ -35,7 +36,7 @@ export default async function DocumentsPage({
           <h1 className="text-[20px] lg:text-[22px] font-extrabold text-gray-900">Documentos</h1>
           <p className="text-[13px] text-gray-500 mt-0.5">{result.pagination.total} documento{result.pagination.total !== 1 ? "s" : ""} cadastrado{result.pagination.total !== 1 ? "s" : ""}</p>
         </div>
-        {can(user, PERMISSIONS.DOCUMENT_UPLOAD) && (
+        {isSuperAdmin(user) && (
           <button
             className="flex items-center gap-1.5 h-9 px-4 rounded-lg text-[13px] font-semibold text-white transition-opacity hover:opacity-90"
             style={{ background: "var(--brand-primary)" }}
@@ -104,13 +105,17 @@ export default async function DocumentsPage({
                 </td>
                 <td className="px-4 py-3 text-[12px] text-gray-400">{formatDate(doc.created_at)}</td>
                 <td className="px-4 py-3">
-                  <a href={`/api/documents/${doc.id}/download`} className="text-gray-400 hover:text-[var(--brand-primary)] transition-colors p-1 block" title="Download">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                      <polyline points="7 10 12 15 17 10"/>
-                      <line x1="12" y1="15" x2="12" y2="3"/>
-                    </svg>
-                  </a>
+                  {can(user, PERMISSIONS.DOCUMENT_DELETE) ? (
+                    <DocumentRowActions documentId={doc.id} downloadHref={`/api/documents/${doc.id}/download`} />
+                  ) : (
+                    <a href={`/api/documents/${doc.id}/download`} className="text-gray-400 hover:text-[var(--brand-primary)] transition-colors p-1 block" title="Download">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="7 10 12 15 17 10"/>
+                        <line x1="12" y1="15" x2="12" y2="3"/>
+                      </svg>
+                    </a>
+                  )}
                 </td>
               </tr>
             ))}

@@ -28,6 +28,7 @@ export const updateCompanySchema = z.object({
   primary_color: hexColorSchema.optional(),
   secondary_color: hexColorSchema.optional(),
   accent_color: hexColorSchema.optional(),
+  cnpj: z.string().max(18).optional(),
 });
 
 export type CreateCompanyInput = z.input<typeof createCompanySchema>;

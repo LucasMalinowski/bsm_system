@@ -6,6 +6,27 @@ import type { EquipmentFilterInput } from "@/lib/validations/equipment.schemas";
 export class EquipmentRepository extends BaseRepository<Equipment> {
   protected tableName = "equipment";
 
+  async findById(id: string): Promise<Equipment | null> {
+    const { data, error } = await this.supabase
+      .from("equipment")
+      .select("*")
+      .eq("id", id)
+      .is("deleted_at", null)
+      .single();
+
+    if (error) return null;
+    return data as Equipment;
+  }
+
+  async softDelete(id: string): Promise<void> {
+    const { error } = await this.supabase
+      .from("equipment")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("id", id);
+
+    if (error) throw new Error(error.message);
+  }
+
   async findFiltered(
     companyId: string,
     filters: EquipmentFilterInput
@@ -15,7 +36,8 @@ export class EquipmentRepository extends BaseRepository<Equipment> {
     let query = this.supabase
       .from("equipment")
       .select("*, category:equipment_categories(id,name)", { count: "exact" })
-      .eq("company_id", companyId);
+      .eq("company_id", companyId)
+      .is("deleted_at", null);
 
     if (search) {
       query = query.or(`name.ilike.%${search}%,internal_code.ilike.%${search}%,serial_number.ilike.%${search}%`);
@@ -36,6 +58,7 @@ export class EquipmentRepository extends BaseRepository<Equipment> {
       .from("equipment")
       .select("*, category:equipment_categories(id,name)")
       .eq("qr_code_token", token)
+      .is("deleted_at", null)
       .single();
 
     if (error) return null;
@@ -47,6 +70,7 @@ export class EquipmentRepository extends BaseRepository<Equipment> {
       .from("equipment")
       .select("*, category:equipment_categories(id,name)")
       .eq("id", id)
+      .is("deleted_at", null)
       .single();
 
     if (error) return null;

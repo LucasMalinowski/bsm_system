@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { EquipmentSlidePanel } from "./equipment-slide-panel";
 import { NewEquipmentModal } from "./new-equipment-modal";
+import { NewTicketModal } from "@/components/tickets/new-ticket-modal";
 import Link from "next/link";
 
 const CAT_COLORS: Record<string, string> = {
@@ -39,6 +40,8 @@ interface Props {
   totalPages: number;
   page: number;
   canCreate: boolean;
+  canDelete?: boolean;
+  userRole: string;
 }
 
 const STATUS_FILTERS = [
@@ -49,7 +52,7 @@ const STATUS_FILTERS = [
   { id: "inactive", label: "Inativo" },
 ];
 
-export function EquipmentListClient({ equipment, total, totalPages, page, canCreate }: Props) {
+export function EquipmentListClient({ equipment, total, totalPages, page, canCreate, canDelete = false, userRole }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [, startTransition] = useTransition();
@@ -58,6 +61,20 @@ export function EquipmentListClient({ equipment, total, totalPages, page, canCre
   const [panelOpen, setPanelOpen] = useState(false);
   const [newModalOpen, setNewModalOpen] = useState(false);
   const [newTicketEq, setNewTicketEq] = useState<Equipment | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const deleteEquipment = async (id: string) => {
+    setDeletingId(id);
+    try {
+      const res = await fetch(`/api/equipment/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        setConfirmDeleteId(null);
+        router.refresh();
+      }
+    } catch {/* ignore */}
+    setDeletingId(null);
+  };
 
   const currentStatus = searchParams.get("status") ?? "all";
   const currentQuery = searchParams.get("q") ?? "";
@@ -180,17 +197,44 @@ export function EquipmentListClient({ equipment, total, totalPages, page, canCre
                       </span>
                     </td>
                     <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                      <Link
-                        href={`/api/equipment/${eq.id}/qrcode`}
-                        target="_blank"
-                        className="text-gray-400 hover:text-[var(--brand-primary)] transition-colors p-1 block"
-                        title="QR Code"
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-                          <rect x="3" y="3" width="5" height="5"/><rect x="16" y="3" width="5" height="5"/><rect x="3" y="16" width="5" height="5"/>
-                          <path d="M21 16h-3v3M21 21h-1M16 16h1v1"/>
-                        </svg>
-                      </Link>
+                      <div className="flex items-center gap-1">
+                        <Link
+                          href={`/api/equipment/${eq.id}/qrcode`}
+                          target="_blank"
+                          className="text-gray-400 hover:text-[var(--brand-primary)] transition-colors p-1 block"
+                          title="QR Code"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+                            <rect x="3" y="3" width="5" height="5"/><rect x="16" y="3" width="5" height="5"/><rect x="3" y="16" width="5" height="5"/>
+                            <path d="M21 16h-3v3M21 21h-1M16 16h1v1"/>
+                          </svg>
+                        </Link>
+                        {canDelete && (
+                          confirmDeleteId === eq.id ? (
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => deleteEquipment(eq.id)}
+                                disabled={deletingId === eq.id}
+                                className="text-[11px] text-red-600 font-semibold hover:underline disabled:opacity-50"
+                              >
+                                {deletingId === eq.id ? "..." : "Confirmar"}
+                              </button>
+                              <button onClick={() => setConfirmDeleteId(null)} className="text-[11px] text-gray-400 hover:underline">Cancelar</button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setConfirmDeleteId(eq.id)}
+                              className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                              title="Excluir"
+                            >
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+                                <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/>
+                                <path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
+                              </svg>
+                            </button>
+                          )
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );
@@ -266,6 +310,14 @@ export function EquipmentListClient({ equipment, total, totalPages, page, canCre
 
       {/* New equipment modal */}
       <NewEquipmentModal open={newModalOpen} onClose={() => setNewModalOpen(false)} />
+
+      {/* New ticket modal (from slide panel) */}
+      <NewTicketModal
+        open={!!newTicketEq}
+        onClose={() => setNewTicketEq(null)}
+        preselect={newTicketEq?.id}
+        userRole={userRole}
+      />
     </>
   );
 }

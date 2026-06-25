@@ -13,6 +13,7 @@ export const updateDocumentSchema = z.object({
   description: z.string().max(1000).nullable().optional(),
   category_id: z.string().uuid().nullable().optional(),
   equipment_id: z.string().uuid().nullable().optional(),
+  visible_to_employees: z.boolean().optional(),
 });
 
 export const documentFilterSchema = paginationSchema.extend({

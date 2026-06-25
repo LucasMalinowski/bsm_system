@@ -4,12 +4,17 @@ import { paginationSchema } from "./common.schemas";
 const TICKET_STATUSES = ["open", "in_progress", "waiting", "resolved", "closed"] as const;
 const TICKET_PRIORITIES = ["low", "medium", "high", "critical"] as const;
 
+const TICKET_TYPES = ["maintenance", "calibration", "repair", "inspection", "other"] as const;
+
 export const createTicketSchema = z.object({
+  company_id: z.string().uuid().optional(),
   title: z.string().min(3, "Title is required").max(300),
   description: z.string().min(1, "Description is required").max(5000),
   priority: z.enum(TICKET_PRIORITIES).optional().default("medium"),
+  type: z.enum(TICKET_TYPES).optional().default("maintenance"),
   equipment_id: z.string().uuid().nullable().optional(),
   assigned_to: z.string().uuid().nullable().optional(),
+  is_support_request: z.boolean().optional().default(false),
 });
 
 export const updateTicketSchema = z.object({
@@ -19,6 +24,7 @@ export const updateTicketSchema = z.object({
   priority: z.enum(TICKET_PRIORITIES).optional(),
   equipment_id: z.string().uuid().nullable().optional(),
   assigned_to: z.string().uuid().nullable().optional(),
+  photo_url: z.string().url().nullable().optional(),
 });
 
 export const ticketFilterSchema = paginationSchema.extend({

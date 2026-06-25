@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
+import { unstable_cache } from "next/cache";
 import type { ReactNode } from "react";
 import { getServerSession } from "@/lib/auth/get-session";
-import { createCompanyService } from "@/lib/services/company.service";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { themeToCssVars, DEFAULT_THEME } from "@/lib/theme/css-vars";
 import { SessionProvider } from "@/components/providers/session-provider";
 import { ThemeProvider } from "@/components/providers/theme-provider";
@@ -11,18 +11,32 @@ import { MobileNav } from "@/components/layout/mobile-nav";
 import { Topbar } from "@/components/layout/topbar";
 import { ImpersonationBanner } from "@/components/layout/impersonation-banner";
 
+// Cache company theme data for 60 seconds per company_id.
+// Theme data changes rarely; using unstable_cache avoids a DB round-trip on every
+// page navigation while still reflecting settings changes within a minute.
+const getCompanyThemeData = unstable_cache(
+  async (companyId: string) => {
+    const admin = createSupabaseAdminClient();
+    const { data } = await admin
+      .from("companies")
+      .select("name,primary_color,secondary_color,accent_color,logo_url")
+      .eq("id", companyId)
+      .single();
+    return data ?? null;
+  },
+  ["company-theme"],
+  { revalidate: 60, tags: ["company-theme"] }
+);
+
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
   const user = await getServerSession();
   if (!user) redirect("/login");
-
-  const supabase = await createSupabaseServerClient();
-  const companyService = createCompanyService(supabase);
 
   let theme = DEFAULT_THEME;
   let impersonatedCompanyName: string | null = null;
 
   if (user.company_id) {
-    const company = await companyService.getById(user.company_id);
+    const company = await getCompanyThemeData(user.company_id);
     if (company) {
       theme = {
         primary_color: company.primary_color,

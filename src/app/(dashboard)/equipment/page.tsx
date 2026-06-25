@@ -30,6 +30,8 @@ export default async function EquipmentPage({
       totalPages={result.pagination.total_pages}
       page={result.pagination.page}
       canCreate={can(user, PERMISSIONS.EQUIPMENT_CREATE)}
+      canDelete={can(user, PERMISSIONS.EQUIPMENT_DELETE)}
+      userRole={user.role}
     />
   );
 }

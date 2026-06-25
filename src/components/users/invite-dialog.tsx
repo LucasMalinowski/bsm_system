@@ -53,6 +53,7 @@ export function InviteDialog({
 
   const handleCreate = async () => {
     if (!email) { setError("Email é obrigatório."); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setError("Email inválido."); return; }
     if (isSuperAdmin && !companyId) { setError("Selecione uma empresa."); return; }
 
     setLoading(true);

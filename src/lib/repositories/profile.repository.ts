@@ -61,12 +61,14 @@ export class ProfileRepository {
 
   async setPermissions(userId: string, permissions: Permission[]): Promise<void> {
     // Delete existing and insert new (replace strategy)
-    await this.supabase.from("user_permissions").delete().eq("user_id", userId);
+    const { error: deleteError } = await this.supabase.from("user_permissions").delete().eq("user_id", userId);
+    if (deleteError) throw new Error(deleteError.message);
 
     if (permissions.length > 0) {
-      await this.supabase.from("user_permissions").insert(
+      const { error: insertError } = await this.supabase.from("user_permissions").insert(
         permissions.map((p) => ({ user_id: userId, permission: p }))
       );
+      if (insertError) throw new Error(insertError.message);
     }
   }
 

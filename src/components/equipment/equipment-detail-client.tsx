@@ -1,9 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
-import type { Equipment, EquipmentHistory } from "@/types";
+import type { Equipment, EquipmentHistory, CalibrationPoint, CalibrationRecord } from "@/types";
+import { RegisterCalibrationModal } from "@/components/calibration/register-calibration-modal";
+import { NewTicketModal } from "@/components/tickets/new-ticket-modal";
+import { formatDate } from "@/lib/utils/format";
+
+const EQUIPMENT_STATUSES = [
+  { value: "active", label: "Ativo" },
+  { value: "inactive", label: "Inativo" },
+  { value: "under_maintenance", label: "Em Manutenção" },
+  { value: "calibration", label: "Calibração" },
+  { value: "retired", label: "Aposentado" },
+];
 
 const CAT_COLORS: Record<string, string> = {
   Pesagem: "#0363a9", Óptica: "#7c3aed", Química: "#059669",
@@ -24,12 +34,106 @@ type Tab = "dados" | "calibração" | "manutenção" | "docs";
 interface Props {
   equipment: Equipment & { history: EquipmentHistory[] };
   canCreate: boolean;
-  formatDate: (d: string | null | undefined) => string;
+  canUpdate: boolean;
+  isSuperAdmin: boolean;
+  userRole: string;
 }
 
-export function EquipmentDetailClient({ equipment, canCreate, formatDate }: Props) {
+export function EquipmentDetailClient({ equipment, canCreate, canUpdate, isSuperAdmin, userRole }: Props) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("dados");
+  const [showTicketModal, setShowTicketModal] = useState(false);
+  const [calPoints, setCalPoints] = useState<CalibrationPoint[]>([]);
+  const [calRecords, setCalRecords] = useState<CalibrationRecord[]>([]);
+  const [editingPoints, setEditingPoints] = useState(false);
+  const [localPoints, setLocalPoints] = useState<CalibrationPoint[]>([]);
+  const [showRegisterModal, setShowRegisterModal] = useState(false);
+  const [savingPoints, setSavingPoints] = useState(false);
+  const certInputRef = useRef<HTMLInputElement>(null);
+  const [certRecordId, setCertRecordId] = useState<string | null>(null);
+  const [uploadingCert, setUploadingCert] = useState(false);
+
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editForm, setEditForm] = useState({
+    name: equipment.name,
+    brand: equipment.brand ?? "",
+    model: equipment.model ?? "",
+    serial_number: equipment.serial_number ?? "",
+    tag: equipment.tag ?? "",
+    scale: equipment.scale ?? "",
+    status: equipment.status,
+    location: equipment.location ?? "",
+    notes: equipment.notes ?? "",
+  });
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+
+  const saveEdit = async () => {
+    setSavingEdit(true);
+    setEditError(null);
+    try {
+      const res = await fetch(`/api/equipment/${equipment.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editForm.name || undefined,
+          brand: editForm.brand || null,
+          model: editForm.model || null,
+          serial_number: editForm.serial_number || null,
+          tag: editForm.tag || null,
+          scale: editForm.scale || null,
+          status: editForm.status,
+          location: editForm.location || null,
+          notes: editForm.notes || null,
+        }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error ?? "Erro ao salvar");
+      }
+      setShowEditModal(false);
+      router.refresh();
+    } catch (e) {
+      setEditError(e instanceof Error ? e.message : "Erro inesperado");
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  useEffect(() => {
+    if (tab === "calibração") {
+      fetch(`/api/equipment/${equipment.id}/calibration-points`).then((r) => r.json()).then(({ data }) => { setCalPoints(data ?? []); setLocalPoints(data ?? []); }).catch(() => {});
+      fetch(`/api/equipment/${equipment.id}/calibrations`).then((r) => r.json()).then(({ data }) => setCalRecords(data ?? [])).catch(() => {});
+    }
+  }, [tab, equipment.id]);
+
+  const savePoints = async () => {
+    setSavingPoints(true);
+    await fetch(`/api/equipment/${equipment.id}/calibration-points`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ points: localPoints }),
+    });
+    setCalPoints(localPoints);
+    setEditingPoints(false);
+    setSavingPoints(false);
+  };
+
+  const addPoint = () => setLocalPoints((p) => [...p, { id: crypto.randomUUID(), equipment_id: equipment.id, point_value: "", criterion: "", error_tolerance: null, sort_order: p.length, created_at: "" }]);
+  const removePoint = (idx: number) => setLocalPoints((p) => p.filter((_, i) => i !== idx));
+  const updatePoint = (idx: number, field: keyof CalibrationPoint, value: unknown) =>
+    setLocalPoints((p) => p.map((pt, i) => i === idx ? { ...pt, [field]: value } : pt));
+
+  const uploadCert = async (recordId: string, file: File) => {
+    setUploadingCert(true);
+    const fd = new FormData();
+    fd.append("file", file);
+    await fetch(`/api/equipment/${equipment.id}/calibrations/${recordId}/certificate`, { method: "POST", body: fd });
+    const res = await fetch(`/api/equipment/${equipment.id}/calibrations`);
+    const { data } = await res.json();
+    setCalRecords(data ?? []);
+    setUploadingCert(false);
+  };
 
   const catName = equipment.category?.name ?? "";
   const color = CAT_COLORS[catName] ?? "#0363a9";
@@ -108,10 +212,26 @@ export function EquipmentDetailClient({ equipment, canCreate, formatDate }: Prop
       <div className="flex-1 overflow-y-auto p-4 pb-32 flex flex-col gap-3">
         {tab === "dados" && (
           <>
+            {canUpdate && (
+              <div className="flex justify-end">
+                <button
+                  onClick={() => setShowEditModal(true)}
+                  className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-[12px] font-semibold border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                  </svg>
+                  Editar
+                </button>
+              </div>
+            )}
             {[
               ["Fabricante", equipment.brand],
               ["Modelo", equipment.model],
               ["Número de Série", equipment.serial_number],
+              ["Tag", equipment.tag],
+              ["Escala", equipment.scale],
               ["Categoria", catName || null],
               ["Localização", equipment.location],
               ["Data de Aquisição", formatDate(equipment.acquisition_date)],
@@ -141,38 +261,119 @@ export function EquipmentDetailClient({ equipment, canCreate, formatDate }: Prop
         )}
 
         {tab === "calibração" && (
-          <>
-            {calHistory.length === 0 ? (
-              <div className="text-center py-10 text-gray-400 text-[13px]">Sem registros de calibração</div>
-            ) : (
-              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                <div
-                  className="px-3.5 py-2.5 border-b border-gray-200 grid gap-2"
-                  style={{ gridTemplateColumns: "1fr 1fr 1fr", background: "#f9fafb" }}
-                >
-                  {["Data", "Ação", "Técnico"].map((h) => (
-                    <span key={h} className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">{h}</span>
-                  ))}
-                </div>
-                {calHistory.map((h, i) => (
-                  <div
-                    key={h.id}
-                    className="px-3.5 py-3 grid gap-2 items-center"
-                    style={{
-                      gridTemplateColumns: "1fr 1fr 1fr",
-                      borderBottom: i < calHistory.length - 1 ? "1px solid #f3f4f6" : "none",
-                    }}
-                  >
-                    <span className="text-[12px] font-mono text-gray-700">{formatDate(h.created_at)}</span>
-                    <span className="text-[12px] text-gray-500 truncate">{h.description}</span>
-                    <span className="text-[11px] font-semibold text-green-700 bg-green-100 px-2 py-[2px] rounded-full inline-block">
-                      {h.user?.name ?? "—"}
-                    </span>
+          <div className="flex flex-col gap-4">
+            {/* Calibration points table */}
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div className="flex items-center justify-between px-3.5 py-3 border-b border-gray-200 bg-gray-50">
+                <span className="text-[12px] font-bold text-gray-700">Pontos de Calibração</span>
+                {!editingPoints ? (
+                  <button onClick={() => setEditingPoints(true)} className="text-[11px] text-[#0363a9] font-semibold hover:underline">Editar</button>
+                ) : (
+                  <div className="flex gap-2">
+                    <button onClick={() => { setEditingPoints(false); setLocalPoints(calPoints); }} className="text-[11px] text-gray-500 hover:underline">Cancelar</button>
+                    <button onClick={savePoints} disabled={savingPoints} className="text-[11px] text-[#0363a9] font-semibold hover:underline">{savingPoints ? "Salvando..." : "Salvar"}</button>
                   </div>
-                ))}
+                )}
               </div>
+              {!editingPoints ? (
+                localPoints.length === 0 ? (
+                  <div className="py-6 text-center text-[12px] text-gray-400">Nenhum ponto cadastrado</div>
+                ) : (
+                  <div>
+                    <div className="grid px-3.5 py-2 bg-gray-50 border-b border-gray-100" style={{ gridTemplateColumns: "1fr 80px 1fr" }}>
+                      {["Ponto", "Erro (tol.)", "Critério"].map((h) => <span key={h} className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">{h}</span>)}
+                    </div>
+                    {localPoints.map((p) => (
+                      <div key={p.id} className="grid px-3.5 py-2.5 border-b border-gray-100 last:border-none" style={{ gridTemplateColumns: "1fr 80px 1fr" }}>
+                        <span className="text-[12px] text-gray-800">{p.point_value}</span>
+                        <span className="text-[12px] text-gray-600">{p.error_tolerance ?? "—"}</span>
+                        <span className="text-[12px] text-gray-800">{p.criterion}</span>
+                      </div>
+                    ))}
+                  </div>
+                )
+              ) : (
+                <div className="flex flex-col gap-2 p-3">
+                  {localPoints.map((p, i) => (
+                    <div key={p.id} className="grid gap-1.5 items-center" style={{ gridTemplateColumns: "1fr 80px 1fr 28px" }}>
+                      <input value={p.point_value} onChange={(e) => updatePoint(i, "point_value", e.target.value)} placeholder="Ponto" className="h-8 rounded-lg border border-gray-300 px-2 text-[12px] outline-none focus:border-[#0363a9]" />
+                      <input type="number" value={p.error_tolerance ?? ""} onChange={(e) => updatePoint(i, "error_tolerance", e.target.value ? Number(e.target.value) : null)} placeholder="±0" className="h-8 rounded-lg border border-gray-300 px-2 text-[12px] outline-none focus:border-[#0363a9]" />
+                      <input value={p.criterion} onChange={(e) => updatePoint(i, "criterion", e.target.value)} placeholder="Critério" className="h-8 rounded-lg border border-gray-300 px-2 text-[12px] outline-none focus:border-[#0363a9]" />
+                      <button onClick={() => removePoint(i)} className="w-7 h-7 rounded-lg bg-red-50 text-red-500 flex items-center justify-center hover:bg-red-100">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                      </button>
+                    </div>
+                  ))}
+                  <button onClick={addPoint} className="mt-1 text-[12px] text-[#0363a9] font-semibold hover:underline text-left">+ Adicionar ponto</button>
+                </div>
+              )}
+            </div>
+
+            {/* SA-only: Register calibration */}
+            {isSuperAdmin && (
+              <button
+                onClick={() => setShowRegisterModal(true)}
+                className="w-full h-10 rounded-xl text-[13px] font-semibold text-white flex items-center justify-center gap-2"
+                style={{ background: "var(--brand-primary)" }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14"/></svg>
+                Registrar Calibração
+              </button>
             )}
-          </>
+
+            {/* Calibration records */}
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div className="px-3.5 py-3 border-b border-gray-200 bg-gray-50">
+                <span className="text-[12px] font-bold text-gray-700">Histórico de Calibrações</span>
+              </div>
+              {calRecords.length === 0 ? (
+                <div className="py-6 text-center text-[12px] text-gray-400">Nenhuma calibração registrada</div>
+              ) : (
+                calRecords.map((r, i) => (
+                  <div key={r.id} className="px-3.5 py-3 border-b border-gray-100 last:border-none">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="text-[12px] font-semibold text-gray-900">{r.performed_at}</div>
+                        <div className="text-[11px] text-gray-400">Por {r.performer?.name ?? "—"}</div>
+                        {r.notes && <div className="text-[11px] text-gray-500 mt-0.5">{r.notes}</div>}
+                      </div>
+                      <div className="flex gap-1.5 flex-shrink-0">
+                        {r.child_storage_path && (
+                          <a href={`/api/equipment/${equipment.id}/calibrations/${r.id}/download`} className="h-7 px-2.5 rounded-lg text-[11px] font-medium text-[#0363a9] border border-[#0363a9]/30 hover:bg-[#0363a9]/5 flex items-center">Planilha</a>
+                        )}
+                        {r.certificate_storage_path ? (
+                          <span className="h-7 px-2.5 rounded-lg text-[11px] font-medium text-green-700 border border-green-200 bg-green-50 flex items-center">Certificado ✓</span>
+                        ) : isSuperAdmin ? (
+                          <>
+                            <input ref={certInputRef} type="file" accept=".pdf,.jpg,.png" className="hidden" onChange={async (e) => { const f = e.target.files?.[0]; if (f && certRecordId) await uploadCert(certRecordId, f); }} />
+                            <button
+                              onClick={() => { setCertRecordId(r.id); certInputRef.current?.click(); }}
+                              disabled={uploadingCert}
+                              className="h-7 px-2.5 rounded-lg text-[11px] font-medium text-gray-600 border border-gray-200 hover:bg-gray-50 flex items-center"
+                            >
+                              {uploadingCert && certRecordId === r.id ? "..." : "Certificado"}
+                            </button>
+                          </>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {showRegisterModal && (
+              <RegisterCalibrationModal
+                equipment={equipment}
+                calibrationPoints={calPoints}
+                onClose={() => setShowRegisterModal(false)}
+                onSuccess={() => {
+                  setShowRegisterModal(false);
+                  fetch(`/api/equipment/${equipment.id}/calibrations`).then((r) => r.json()).then(({ data }) => setCalRecords(data ?? []));
+                }}
+              />
+            )}
+          </div>
         )}
 
         {tab === "manutenção" && (
@@ -234,8 +435,8 @@ export function EquipmentDetailClient({ equipment, canCreate, formatDate }: Prop
         style={{ background: "rgba(249,250,251,0.95)", backdropFilter: "blur(8px)" }}
       >
         {canCreate && (
-          <Link
-            href={`/tickets/new?equipment=${equipment.id}`}
+          <button
+            onClick={() => setShowTicketModal(true)}
             className="flex-1 h-[46px] rounded-xl flex items-center justify-center gap-1.5 text-[14px] font-semibold text-white transition-opacity hover:opacity-90"
             style={{ background: "#0363a9" }}
           >
@@ -243,7 +444,7 @@ export function EquipmentDetailClient({ equipment, canCreate, formatDate }: Prop
               <path d="M15 5v2M15 11v2M15 17v2M5 5h14a2 2 0 0 1 2 2v3a2 2 0 0 0 0 4v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-3a2 2 0 0 0 0-4V7a2 2 0 0 1 2-2z"/>
             </svg>
             Abrir Chamado
-          </Link>
+          </button>
         )}
         <a
           href={`/api/equipment/${equipment.id}/qrcode`}
@@ -258,6 +459,88 @@ export function EquipmentDetailClient({ equipment, canCreate, formatDate }: Prop
           </svg>
         </a>
       </div>
+
+      <NewTicketModal
+        open={showTicketModal}
+        onClose={() => setShowTicketModal(false)}
+        preselect={equipment.id}
+        userRole={userRole}
+      />
+
+      {showEditModal && (
+        <div className="fixed inset-0 z-50 flex items-end lg:items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowEditModal(false)} />
+          <div className="relative bg-white rounded-t-2xl lg:rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-5 flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-[16px] font-bold text-gray-900">Editar Equipamento</h2>
+              <button onClick={() => setShowEditModal(false)} className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+              </button>
+            </div>
+
+            {editError && (
+              <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-[12px] text-red-700">{editError}</div>
+            )}
+
+            <div className="flex flex-col gap-3">
+              {[
+                { key: "name", label: "Nome *", type: "text" },
+                { key: "brand", label: "Fabricante", type: "text" },
+                { key: "model", label: "Modelo", type: "text" },
+                { key: "serial_number", label: "Número de Série", type: "text" },
+                { key: "tag", label: "Tag", type: "text" },
+                { key: "scale", label: "Escala", type: "text" },
+                { key: "location", label: "Localização", type: "text" },
+              ].map(({ key, label, type }) => (
+                <div key={key}>
+                  <label className="block text-[12px] font-medium text-gray-600 mb-1">{label}</label>
+                  <input
+                    type={type}
+                    value={editForm[key as keyof typeof editForm]}
+                    onChange={(e) => setEditForm((f) => ({ ...f, [key]: e.target.value }))}
+                    className="w-full h-9 rounded-lg border border-gray-300 px-3 text-[13px] outline-none focus:border-[#0363a9]"
+                  />
+                </div>
+              ))}
+
+              <div>
+                <label className="block text-[12px] font-medium text-gray-600 mb-1">Status</label>
+                <select
+                  value={editForm.status}
+                  onChange={(e) => setEditForm((f) => ({ ...f, status: e.target.value as Equipment["status"] }))}
+                  className="w-full h-9 rounded-lg border border-gray-300 px-3 text-[13px] outline-none focus:border-[#0363a9]"
+                >
+                  {EQUIPMENT_STATUSES.map((s) => (
+                    <option key={s.value} value={s.value}>{s.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[12px] font-medium text-gray-600 mb-1">Observações</label>
+                <textarea
+                  value={editForm.notes}
+                  onChange={(e) => setEditForm((f) => ({ ...f, notes: e.target.value }))}
+                  rows={3}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-[13px] outline-none resize-none focus:border-[#0363a9]"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <button onClick={() => setShowEditModal(false)} className="flex-1 h-10 rounded-xl border border-gray-300 text-[13px] font-semibold text-gray-700 hover:bg-gray-50">Cancelar</button>
+              <button
+                onClick={saveEdit}
+                disabled={savingEdit}
+                className="flex-1 h-10 rounded-xl text-[13px] font-semibold text-white disabled:opacity-50"
+                style={{ background: "#0363a9" }}
+              >
+                {savingEdit ? "Salvando..." : "Salvar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -32,7 +32,7 @@ export class CompanyRepository extends BaseRepository<Company> {
 
     if (error) throw new Error(error.message);
 
-    return (data ?? []).map((c: Company & { profiles: [{ count: number }] }) => ({
+    return (data ?? []).map((c: any) => ({
       ...c,
       user_count: c.profiles?.[0]?.count ?? 0,
     }));

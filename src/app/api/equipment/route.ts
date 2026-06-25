@@ -3,7 +3,7 @@ import { getServerSession } from "@/lib/auth/get-session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createEquipmentService } from "@/lib/services/equipment.service";
 import { equipmentFilterSchema, createEquipmentSchema } from "@/lib/validations/equipment.schemas";
-import { can, PERMISSIONS } from "@/lib/auth/permissions";
+import { can, PERMISSIONS, isSuperAdmin } from "@/lib/auth/permissions";
 import { handleApiError, unauthorizedResponse, forbiddenResponse } from "@/lib/utils/errors";
 
 export async function GET(request: NextRequest) {
@@ -15,9 +15,19 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const filters = equipmentFilterSchema.parse(Object.fromEntries(searchParams));
 
+    // SA without impersonation can pass company_id as query param
+    const companyId =
+      isSuperAdmin(user) && !user.company_id
+        ? (searchParams.get("company_id") ?? user.company_id ?? "")
+        : user.company_id!;
+
+    if (!companyId) {
+      return NextResponse.json({ data: [], pagination: { page: 1, limit: 20, total: 0, total_pages: 0 } });
+    }
+
     const supabase = await createSupabaseServerClient();
     const service = createEquipmentService(supabase);
-    const result = await service.list(user.company_id!, filters);
+    const result = await service.list(companyId, filters);
 
     return NextResponse.json(result);
   } catch (err) {
@@ -34,9 +44,41 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const input = createEquipmentSchema.parse(body);
 
+    // SA without impersonation: use company_id from body
+    const companyId =
+      isSuperAdmin(user) && !user.company_id
+        ? (input.company_id ?? null)
+        : user.company_id;
+
+    if (!companyId) return forbiddenResponse("company_id required");
+
     const supabase = await createSupabaseServerClient();
+
+    // Resolve category_name → category_id if provided without an ID
+    let resolvedInput = { ...input };
+    if (!resolvedInput.category_id && resolvedInput.category_name) {
+      const { data: existingCat } = await supabase
+        .from("equipment_categories")
+        .select("id")
+        .eq("company_id", companyId)
+        .ilike("name", resolvedInput.category_name)
+        .single();
+
+      if (existingCat) {
+        resolvedInput.category_id = existingCat.id;
+      } else {
+        const { data: newCat } = await supabase
+          .from("equipment_categories")
+          .insert({ company_id: companyId, name: resolvedInput.category_name })
+          .select("id")
+          .single();
+        if (newCat) resolvedInput.category_id = newCat.id;
+      }
+    }
+    delete resolvedInput.category_name;
+
     const service = createEquipmentService(supabase);
-    const equipment = await service.create(user.company_id!, user.id, input);
+    const equipment = await service.create(companyId, user.id, resolvedInput);
 
     return NextResponse.json({ data: equipment }, { status: 201 });
   } catch (err) {

@@ -42,7 +42,9 @@ interface Props {
   totalPages: number;
   page: number;
   canCreate: boolean;
+  canDelete?: boolean;
   currentStatus: string;
+  userRole: string;
 }
 
 const TABS = [
@@ -52,9 +54,23 @@ const TABS = [
   { id: "resolved",    label: "Resolvidos" },
 ];
 
-export function TicketsListClient({ tickets, total, totalPages, page, canCreate, currentStatus }: Props) {
+export function TicketsListClient({ tickets, total, totalPages, page, canCreate, canDelete = false, currentStatus, userRole }: Props) {
   const router = useRouter();
   const [modalOpen, setModalOpen] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const deleteTicket = async (id: string) => {
+    setDeletingId(id);
+    try {
+      const res = await fetch(`/api/tickets/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        setConfirmDeleteId(null);
+        router.refresh();
+      }
+    } catch {/* ignore */}
+    setDeletingId(null);
+  };
 
   const setTab = (id: string) => {
     const params = id === "all" ? "" : `?status=${id}`;
@@ -110,14 +126,14 @@ export function TicketsListClient({ tickets, total, totalPages, page, canCreate,
           <table className="w-full text-[13px]">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-100">
-                {["#", "Título", "Status", "Prioridade", "Responsável", "Data"].map((h) => (
+                {["#", "Título", "Status", "Prioridade", "Responsável", "Data", ""].map((h) => (
                   <th key={h} className="px-4 py-2.5 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {tickets.length === 0 ? (
-                <tr><td colSpan={6} className="px-4 py-12 text-center text-gray-400 text-[13px]">Nenhum chamado encontrado</td></tr>
+                <tr><td colSpan={7} className="px-4 py-12 text-center text-gray-400 text-[13px]">Nenhum chamado encontrado</td></tr>
               ) : tickets.map((t) => {
                 const ts = STATUS_MAP[t.status] ?? STATUS_MAP.open;
                 const pc = PRIORITY_COLORS[t.priority] ?? "#9ca3af";
@@ -141,6 +157,33 @@ export function TicketsListClient({ tickets, total, totalPages, page, canCreate,
                     </td>
                     <td className="px-4 py-3 text-[12px] text-gray-600">{t.assignee?.name ?? "—"}</td>
                     <td className="px-4 py-3 text-[12px] text-gray-400">{new Date(t.updated_at).toLocaleDateString("pt-BR")}</td>
+                    <td className="px-4 py-3">
+                      {canDelete && (
+                        confirmDeleteId === t.id ? (
+                          <div className="flex items-center gap-1 whitespace-nowrap">
+                            <button
+                              onClick={() => deleteTicket(t.id)}
+                              disabled={deletingId === t.id}
+                              className="text-[11px] text-red-600 font-semibold hover:underline disabled:opacity-50"
+                            >
+                              {deletingId === t.id ? "..." : "Confirmar"}
+                            </button>
+                            <button onClick={() => setConfirmDeleteId(null)} className="text-[11px] text-gray-400 hover:underline">Cancelar</button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setConfirmDeleteId(t.id)}
+                            className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                            title="Excluir"
+                          >
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+                              <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/>
+                              <path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
+                            </svg>
+                          </button>
+                        )
+                      )}
+                    </td>
                   </tr>
                 );
               })}
@@ -211,7 +254,7 @@ export function TicketsListClient({ tickets, total, totalPages, page, canCreate,
         </div>
       </div>
 
-      <NewTicketModal open={modalOpen} onClose={() => setModalOpen(false)} />
+      <NewTicketModal open={modalOpen} onClose={() => setModalOpen(false)} userRole={userRole} />
     </>
   );
 }

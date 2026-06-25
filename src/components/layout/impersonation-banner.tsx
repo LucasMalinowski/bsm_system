@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { AlertTriangle, X } from "lucide-react";
 
@@ -9,14 +8,12 @@ interface ImpersonationBannerProps {
 }
 
 export function ImpersonationBanner({ companyName }: ImpersonationBannerProps) {
-  const router = useRouter();
   const [loading, setLoading] = useState(false);
 
   const exit = async () => {
     setLoading(true);
     await fetch("/api/super-admin/impersonate/exit", { method: "POST" });
-    router.push("/super-admin/companies");
-    router.refresh();
+    window.location.href = "/super-admin/companies";
   };
 
   return (

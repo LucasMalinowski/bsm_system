@@ -7,9 +7,9 @@ import type { UploadDocumentInput, UpdateDocumentInput, DocumentFilterInput } fr
 export class DocumentService {
   constructor(private supabase: SupabaseClient) {}
 
-  async list(companyId: string, filters: DocumentFilterInput): Promise<PaginatedResponse<Document>> {
+  async list(companyId: string, filters: DocumentFilterInput, employeeOnly = false): Promise<PaginatedResponse<Document>> {
     const repo = createDocumentRepository(this.supabase);
-    const { data, count } = await repo.findFiltered(companyId, filters);
+    const { data, count } = await repo.findFiltered(companyId, filters, employeeOnly);
     const page = filters.page ?? 1;
     const limit = filters.limit ?? 20;
     return {
@@ -18,9 +18,13 @@ export class DocumentService {
     };
   }
 
-  async getById(id: string) {
+  async getById(id: string, companyId: string | null, isSuperAdmin: boolean, employeeOnly: boolean) {
     const repo = createDocumentRepository(this.supabase);
-    return repo.findWithVersions(id);
+    const doc = await repo.findWithVersions(id);
+    if (!doc) return null;
+    if (!isSuperAdmin && doc.company_id !== companyId) return null;
+    if (employeeOnly && !doc.visible_to_employees) return null;
+    return doc;
   }
 
   async upload(
@@ -74,10 +78,18 @@ export class DocumentService {
     return doc;
   }
 
-  async update(id: string, userId: string, input: UpdateDocumentInput): Promise<Document> {
+  async update(
+    id: string,
+    userId: string,
+    input: UpdateDocumentInput,
+    companyId: string | null,
+    isSuperAdmin: boolean
+  ): Promise<Document | null> {
     const repo = createDocumentRepository(this.supabase);
     const audit = createAuditService(this.supabase);
     const before = await repo.findById(id);
+    if (!before) return null;
+    if (!isSuperAdmin && before.company_id !== companyId) return null;
     const doc = await repo.update(id, input);
 
     await audit.log({
@@ -103,27 +115,27 @@ export class DocumentService {
     return data.signedUrl;
   }
 
-  async delete(id: string, userId: string, companyId: string): Promise<void> {
+  async delete(id: string, userId: string, companyId: string | null, isSuperAdmin: boolean): Promise<boolean> {
     const repo = createDocumentRepository(this.supabase);
     const audit = createAuditService(this.supabase);
     const doc = await repo.findById(id);
 
-    if (doc) {
-      await this.supabase.storage.from("documents").remove([doc.storage_path]);
-    }
+    if (!doc) return false;
+    if (!isSuperAdmin && doc.company_id !== companyId) return false;
 
-    await Promise.all([
-      repo.delete(id),
-      audit.log({
-        companyId,
-        userId,
-        action: "delete",
-        resourceType: "document",
-        resourceId: id,
-        resourceName: doc?.name,
-        oldData: doc as unknown as Record<string, unknown>,
-      }),
-    ]);
+    await repo.delete(id);
+    await this.supabase.storage.from("documents").remove([doc.storage_path]);
+    await audit.log({
+      companyId: doc.company_id,
+      userId,
+      action: "delete",
+      resourceType: "document",
+      resourceId: id,
+      resourceName: doc.name,
+      oldData: doc as unknown as Record<string, unknown>,
+    });
+
+    return true;
   }
 }
 

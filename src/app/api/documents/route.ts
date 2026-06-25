@@ -3,7 +3,7 @@ import { getServerSession } from "@/lib/auth/get-session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createDocumentService } from "@/lib/services/document.service";
 import { documentFilterSchema, uploadDocumentSchema } from "@/lib/validations/document.schemas";
-import { can, PERMISSIONS } from "@/lib/auth/permissions";
+import { can, PERMISSIONS, isSuperAdmin } from "@/lib/auth/permissions";
 import { handleApiError, unauthorizedResponse, forbiddenResponse } from "@/lib/utils/errors";
 
 export async function GET(request: NextRequest) {
@@ -15,9 +15,17 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const filters = documentFilterSchema.parse(Object.fromEntries(searchParams));
 
+    // SA without impersonation can pass company_id as query param
+    const companyId =
+      isSuperAdmin(user) && !user.company_id
+        ? searchParams.get("company_id")
+        : user.company_id;
+
+    if (!companyId) return forbiddenResponse("company_id required");
+
     const supabase = await createSupabaseServerClient();
     const service = createDocumentService(supabase);
-    const result = await service.list(user.company_id!, filters);
+    const result = await service.list(companyId, filters, user.role === "employee");
 
     return NextResponse.json(result);
   } catch (err) {
@@ -29,7 +37,7 @@ export async function POST(request: NextRequest) {
   try {
     const user = await getServerSession();
     if (!user) return unauthorizedResponse();
-    if (!can(user, PERMISSIONS.DOCUMENT_UPLOAD)) return forbiddenResponse();
+    if (!isSuperAdmin(user)) return forbiddenResponse("Apenas o Super Admin pode criar novos documentos");
 
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
@@ -47,9 +55,17 @@ export async function POST(request: NextRequest) {
 
     const input = uploadDocumentSchema.parse(meta);
 
+    // SA without impersonation: use company_id from formData
+    const companyId =
+      isSuperAdmin(user) && !user.company_id
+        ? (formData.get("company_id") as string | null) ?? null
+        : user.company_id;
+
+    if (!companyId) return forbiddenResponse("company_id required");
+
     const supabase = await createSupabaseServerClient();
     const service = createDocumentService(supabase);
-    const doc = await service.upload(user.company_id!, user.id, file, input);
+    const doc = await service.upload(companyId, user.id, file, input);
 
     return NextResponse.json({ data: doc }, { status: 201 });
   } catch (err) {

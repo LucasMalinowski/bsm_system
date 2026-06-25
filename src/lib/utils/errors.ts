@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { ZodError } from "zod";
 
 export class AppError extends Error {
   constructor(
@@ -25,7 +26,22 @@ export function handleApiError(err: unknown): NextResponse {
     );
   }
 
+  if (err instanceof ZodError) {
+    const firstIssue = err.issues[0];
+    const message = firstIssue ? `${firstIssue.path.join(".") || "campo"}: ${firstIssue.message}` : "Dados inválidos";
+    return NextResponse.json(
+      { error: message, code: "VALIDATION_ERROR", details: err.issues },
+      { status: 400 }
+    );
+  }
+
   if (err instanceof Error) {
+    if (err.message.includes("duplicate key value violates unique constraint")) {
+      return NextResponse.json(
+        { error: "Já existe um registro com esses dados (código ou identificador duplicado)." },
+        { status: 409 }
+      );
+    }
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 

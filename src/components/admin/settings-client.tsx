@@ -1,14 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ThemeEditor } from "./theme-editor";
 import { LogoUpload } from "./logo-upload";
+import { DocumentCategoriesManager } from "./document-categories-manager";
 
 const BRAND_COLORS = ["#0363a9", "#7c3aed", "#059669", "#dc2626", "#d97706", "#0891b2"];
 
 const NOTIFICATIONS = [
-  { id: "cal_alert",   title: "Alerta de calibração próxima",  desc: "30 dias antes do vencimento",       defaultOn: true },
+  { id: "cal_alert",   title: "Alerta de calibração próxima",  desc: "7 dias antes do vencimento",         defaultOn: true },
   { id: "unassigned",  title: "Chamado sem responsável",        desc: "Após 24h sem atribuição",            defaultOn: true },
   { id: "weekly",      title: "Relatório semanal",              desc: "Toda segunda-feira às 8h",           defaultOn: false },
 ];
@@ -17,6 +18,7 @@ interface Props {
   companyId: string;
   companyName: string;
   cnpj: string;
+  isFullAdmin?: boolean;
   currentTheme: {
     primary_color: string;
     secondary_color: string;
@@ -25,7 +27,7 @@ interface Props {
   };
 }
 
-export function SettingsClient({ companyId, companyName, cnpj, currentTheme }: Props) {
+export function SettingsClient({ companyId, companyName, cnpj, isFullAdmin = false, currentTheme }: Props) {
   const router = useRouter();
   const [name, setName] = useState(companyName);
   const [cnpjVal, setCnpj] = useState(cnpj);
@@ -35,17 +37,38 @@ export function SettingsClient({ companyId, companyName, cnpj, currentTheme }: P
   );
   const [saving, setSaving] = useState(false);
 
+  useEffect(() => {
+    fetch("/api/notifications/preferences")
+      .then((r) => r.json())
+      .then(({ data }) => {
+        if (data) setNotifications({ cal_alert: data.cal_alert, unassigned: data.unassigned, weekly: data.weekly });
+      })
+      .catch(() => {});
+  }, []);
+
   const toggleNotif = (id: string) =>
     setNotifications((prev) => ({ ...prev, [id]: !prev[id] }));
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      await fetch(`/api/companies/${companyId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, primary_color: primaryColor }),
-      });
+      const body: Record<string, unknown> = { primary_color: primaryColor };
+      if (isFullAdmin) {
+        body.name = name;
+        body.cnpj = cnpjVal;
+      }
+      await Promise.all([
+        fetch(`/api/companies/${companyId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        }),
+        fetch("/api/notifications/preferences", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(notifications),
+        }),
+      ]);
       router.refresh();
     } finally {
       setSaving(false);
@@ -59,35 +82,37 @@ export function SettingsClient({ companyId, companyName, cnpj, currentTheme }: P
         <p className="text-[13px] text-gray-500 mt-0.5">Personalize o ambiente da sua empresa</p>
       </div>
 
-      {/* Company identity */}
+      {/* Company identity — SA only */}
+      {isFullAdmin && (
+        <div className="bg-white border border-gray-200 rounded-xl p-6" style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+          <h2 className="text-[15px] font-bold text-gray-900 mb-5">Identidade da Empresa</h2>
+          <div className="flex flex-col gap-4">
+            <LogoUpload companyId={companyId} currentLogoUrl={currentTheme.logo_url} />
+            <div>
+              <label className="text-[13px] font-medium text-gray-700 block mb-1.5">Nome da empresa</label>
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full h-10 rounded-lg border border-gray-300 px-3 text-[13px] text-gray-900 outline-none focus:border-[#0363a9] focus:shadow-[0_0_0_3px_rgba(3,99,169,0.12)] transition-all"
+              />
+            </div>
+            <div>
+              <label className="text-[13px] font-medium text-gray-700 block mb-1.5">CNPJ</label>
+              <input
+                value={cnpjVal}
+                onChange={(e) => setCnpj(e.target.value)}
+                placeholder="00.000.000/0001-00"
+                className="w-full h-10 rounded-lg border border-gray-300 px-3 text-[13px] text-gray-900 outline-none focus:border-[#0363a9] focus:shadow-[0_0_0_3px_rgba(3,99,169,0.12)] transition-all font-mono"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Appearance — visible to all admins */}
       <div className="bg-white border border-gray-200 rounded-xl p-6" style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
-        <h2 className="text-[15px] font-bold text-gray-900 mb-5">Identidade da Empresa</h2>
+        <h2 className="text-[15px] font-bold text-gray-900 mb-5">Aparência</h2>
         <div className="flex flex-col gap-4">
-          {/* Logo */}
-          <LogoUpload companyId={companyId} currentLogoUrl={currentTheme.logo_url} />
-
-          {/* Name */}
-          <div>
-            <label className="text-[13px] font-medium text-gray-700 block mb-1.5">Nome da empresa</label>
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full h-10 rounded-lg border border-gray-300 px-3 text-[13px] text-gray-900 outline-none focus:border-[#0363a9] focus:shadow-[0_0_0_3px_rgba(3,99,169,0.12)] transition-all"
-            />
-          </div>
-
-          {/* CNPJ */}
-          <div>
-            <label className="text-[13px] font-medium text-gray-700 block mb-1.5">CNPJ</label>
-            <input
-              value={cnpjVal}
-              onChange={(e) => setCnpj(e.target.value)}
-              placeholder="00.000.000/0001-00"
-              className="w-full h-10 rounded-lg border border-gray-300 px-3 text-[13px] text-gray-900 outline-none focus:border-[#0363a9] focus:shadow-[0_0_0_3px_rgba(3,99,169,0.12)] transition-all font-mono"
-            />
-          </div>
-
-          {/* Primary color swatches */}
           <div>
             <label className="text-[13px] font-medium text-gray-700 block mb-2">Cor primária</label>
             <div className="flex items-center gap-2">
@@ -106,8 +131,6 @@ export function SettingsClient({ companyId, companyName, cnpj, currentTheme }: P
               <span className="text-[12px] text-gray-400 ml-1 font-mono">{primaryColor}</span>
             </div>
           </div>
-
-          {/* Theme editor (secondary/accent colors) */}
           <ThemeEditor companyId={companyId} currentTheme={currentTheme} />
         </div>
       </div>
@@ -126,7 +149,6 @@ export function SettingsClient({ companyId, companyName, cnpj, currentTheme }: P
                 <div className="text-[13px] font-semibold text-gray-900">{n.title}</div>
                 <div className="text-[12px] text-gray-400">{n.desc}</div>
               </div>
-              {/* Toggle switch */}
               <button
                 onClick={() => toggleNotif(n.id)}
                 className="flex-shrink-0 relative cursor-pointer transition-all"
@@ -149,6 +171,9 @@ export function SettingsClient({ companyId, companyName, cnpj, currentTheme }: P
           ))}
         </div>
       </div>
+
+      {/* Document categories */}
+      <DocumentCategoriesManager />
 
       {/* Save */}
       <div className="flex gap-2.5 justify-end">

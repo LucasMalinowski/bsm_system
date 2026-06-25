@@ -1,10 +1,12 @@
 import { getServerSession } from "@/lib/auth/get-session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createUserService } from "@/lib/services/user.service";
+import { createProfileRepository } from "@/lib/repositories/profile.repository";
 import { isAdmin } from "@/lib/auth/permissions";
 import { forbidden, redirect, notFound } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RoleManager } from "@/components/admin/role-manager";
+import { UserEditCard } from "@/components/admin/user-edit-card";
 import { Avatar } from "@/components/ui/avatar";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
@@ -21,11 +23,13 @@ export default async function UserDetailPage({
 
   const supabase = await createSupabaseServerClient();
   const service = createUserService(supabase);
-  const permissions = await service.getPermissions(id);
+  const repo = createProfileRepository(supabase);
 
-  // Get profile from profiles list
-  const users = await service.listByCompany(user.company_id!);
-  const profile = users.find((u) => u.id === id);
+  const [permissions, profile] = await Promise.all([
+    service.getPermissions(id),
+    repo.findById(id),
+  ]);
+
   if (!profile) notFound();
 
   return (
@@ -42,6 +46,22 @@ export default async function UserDetailPage({
           </div>
         </div>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Editar Usuário</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <UserEditCard
+            userId={id}
+            initialName={profile.name}
+            initialRole={profile.role}
+            initialAvatarUrl={profile.avatar_url}
+            initialIsActive={profile.is_active}
+            isSelf={id === user.id}
+          />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

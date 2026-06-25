@@ -30,7 +30,9 @@ export default async function TicketsPage({
       totalPages={result.pagination.total_pages}
       page={result.pagination.page}
       canCreate={can(user, PERMISSIONS.TICKET_CREATE)}
+      canDelete={can(user, PERMISSIONS.TICKET_DELETE)}
       currentStatus={params.status ?? ""}
+      userRole={user.role}
     />
   );
 }

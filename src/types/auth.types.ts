@@ -21,7 +21,10 @@ export type Permission =
   | "company:read"
   | "company:update"
   | "company:settings"
-  | "report:view";
+  | "report:view"
+  | "calibration:read"
+  | "calibration:manage"
+  | "calibration:register";
 
 export interface AuthUser {
   id: string;
