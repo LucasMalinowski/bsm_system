@@ -216,10 +216,38 @@ export function TicketDetailClient({ ticket, canUpdate, canAssign, currentUserId
                 <p className="text-xs text-gray-500">Atualizado</p>
                 <p>{formatDateTime(ticket.updated_at)}</p>
               </div>
+              {ticket.picked_up_at && (
+                <div>
+                  <p className="text-xs text-gray-500">Equipamento retirado</p>
+                  <p>{formatDateTime(ticket.picked_up_at)}</p>
+                </div>
+              )}
+              {ticket.returned_at && (
+                <div>
+                  <p className="text-xs text-gray-500">Equipamento devolvido</p>
+                  <p>{formatDateTime(ticket.returned_at)}</p>
+                </div>
+              )}
               {ticket.resolved_at && (
                 <div>
                   <p className="text-xs text-gray-500">Resolvido em</p>
                   <p>{formatDateTime(ticket.resolved_at)}</p>
+                </div>
+              )}
+              {ticket.closed_at && (
+                <div>
+                  <p className="text-xs text-gray-500">Encerrado em</p>
+                  <p>{formatDateTime(ticket.closed_at)}</p>
+                </div>
+              )}
+              {ticket.created_at && (
+                <div>
+                  <p className="text-xs text-gray-500">Tempo aberto</p>
+                  <p>{(() => {
+                    const end = ticket.closed_at ?? ticket.resolved_at ?? new Date().toISOString();
+                    const days = Math.floor((new Date(end).getTime() - new Date(ticket.created_at).getTime()) / 86400000);
+                    return days === 0 ? "Menos de 1 dia" : `${days} dia${days !== 1 ? "s" : ""}`;
+                  })()}</p>
                 </div>
               )}
             </CardContent>

@@ -19,6 +19,7 @@ export const createEquipmentSchema = z.object({
   status: z.enum(EQUIPMENT_STATUSES).optional().default("active"),
   location: z.string().max(200).nullable().optional(),
   acquisition_date: z.string().date().nullable().optional(),
+  acquisition_cost: z.number().nonnegative().nullable().optional(),
   last_calibration: z.string().date().nullable().optional(),
   next_calibration: z.string().date().nullable().optional(),
   notes: z.string().max(2000).nullable().optional(),

@@ -18,7 +18,7 @@ test.describe("Login page", () => {
   test("shows validation error for empty submit", async ({ page }) => {
     await page.click('button[type="submit"]');
     // Zod/react-hook-form validation fires client-side
-    await expect(page.locator("p.text-red-400").first()).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator("p.text-red-500").first()).toBeVisible({ timeout: 5_000 });
   });
 
   test("shows error for wrong credentials", async ({ page }) => {

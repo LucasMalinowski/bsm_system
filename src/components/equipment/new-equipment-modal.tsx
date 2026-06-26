@@ -33,9 +33,11 @@ export function NewEquipmentModal({ open, onClose, companyId }: Props) {
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
   const [form, setForm] = useState({
     name: "", internal_code: "", serial_number: "", brand: "", model: "", tag: "", scale: "",
-    category: "Pesagem", location: "", acquisition_date: "", status: "active",
+    category: "Pesagem", location: "", acquisition_date: "", acquisition_cost: "", status: "active",
     requires_calibration: true,
     calibration_periodicity: "anual",
   });
@@ -44,9 +46,9 @@ export function NewEquipmentModal({ open, onClose, companyId }: Props) {
   const set = (k: string, v: string | boolean) => setForm((f) => ({ ...f, [k]: v }));
 
   const handleClose = () => {
-    setStep(1); setSaved(false); setLoading(false); setDocsToCopy([]); setPhotoFile(null); setPhotoPreview(null);
+    setStep(1); setSaved(false); setLoading(false); setSubmitError(null); setDocsToCopy([]); setPhotoFile(null); setPhotoPreview(null);
     setCalPoints([]);
-    setForm({ name: "", internal_code: "", serial_number: "", brand: "", model: "", tag: "", scale: "", category: "Pesagem", location: "", acquisition_date: "", status: "active", requires_calibration: true, calibration_periodicity: "anual" });
+    setForm({ name: "", internal_code: "", serial_number: "", brand: "", model: "", tag: "", scale: "", category: "Pesagem", location: "", acquisition_date: "", acquisition_cost: "", status: "active", requires_calibration: true, calibration_periodicity: "anual" });
     onClose();
   };
 
@@ -77,6 +79,7 @@ export function NewEquipmentModal({ open, onClose, companyId }: Props) {
 
   const handleSave = async () => {
     setLoading(true);
+    setSubmitError(null);
     try {
       // Upload photo first if selected
       let imageUrl: string | undefined;
@@ -101,6 +104,7 @@ export function NewEquipmentModal({ open, onClose, companyId }: Props) {
         category_name: form.category,
         location: form.location || undefined,
         acquisition_date: form.acquisition_date || undefined,
+        acquisition_cost: form.acquisition_cost ? Number(form.acquisition_cost) : undefined,
         status: form.status,
         requires_calibration: form.requires_calibration,
         calibration_periodicity: form.requires_calibration ? form.calibration_periodicity || null : null,
@@ -115,6 +119,8 @@ export function NewEquipmentModal({ open, onClose, companyId }: Props) {
       });
 
       if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setSubmitError(body.error ?? "Erro ao salvar equipamento. Tente novamente.");
         setLoading(false);
         return;
       }
@@ -153,6 +159,7 @@ export function NewEquipmentModal({ open, onClose, companyId }: Props) {
       router.refresh();
       setTimeout(handleClose, 1400);
     } catch {
+      setSubmitError("Erro inesperado. Tente novamente.");
       setLoading(false);
     }
   };
@@ -312,16 +319,20 @@ export function NewEquipmentModal({ open, onClose, companyId }: Props) {
                   <input value={form.acquisition_date} onChange={(e) => set("acquisition_date", e.target.value)} type="date" className={inputCls} />
                 </div>
                 <div>
-                  {lbl("Status inicial")}
-                  <div className="flex gap-2">
-                    {[["active", "Ativo"], ["inactive", "Inativo"]].map(([id, label]) => (
-                      <button key={id} type="button" onClick={() => set("status", id)}
-                        className="flex-1 h-10 rounded-[10px] text-[13px] font-semibold cursor-pointer transition-all duration-150"
-                        style={{ border: form.status === id ? "2px solid #0363a9" : "1px solid #e5e7eb", background: form.status === id ? "#e0f0fb" : "#fff", color: form.status === id ? "#0363a9" : "#374151", fontFamily: "inherit" }}>
-                        {label}
-                      </button>
-                    ))}
-                  </div>
+                  {lbl("Custo de Aquisição (R$)")}
+                  <input value={form.acquisition_cost} onChange={(e) => set("acquisition_cost", e.target.value)} type="number" min="0" step="0.01" placeholder="0,00" className={inputCls} />
+                </div>
+              </div>
+              <div>
+                {lbl("Status inicial")}
+                <div className="flex gap-2">
+                  {[["active", "Ativo"], ["inactive", "Inativo"]].map(([id, label]) => (
+                    <button key={id} type="button" onClick={() => set("status", id)}
+                      className="flex-1 h-10 rounded-[10px] text-[13px] font-semibold cursor-pointer transition-all duration-150"
+                      style={{ border: form.status === id ? "2px solid #0363a9" : "1px solid #e5e7eb", background: form.status === id ? "#e0f0fb" : "#fff", color: form.status === id ? "#0363a9" : "#374151", fontFamily: "inherit" }}>
+                      {label}
+                    </button>
+                  ))}
                 </div>
               </div>
             </div>
@@ -459,9 +470,16 @@ export function NewEquipmentModal({ open, onClose, companyId }: Props) {
 
         {/* Footer */}
         {!saved && (
-          <div className="flex gap-2.5 justify-end px-6 py-4 border-t border-gray-200 flex-shrink-0">
+          <div className="flex-shrink-0 border-t border-gray-200">
+            {submitError && (
+              <div className="flex items-center gap-2 px-6 py-3 bg-red-50 border-b border-red-100">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                <span className="text-[12px] text-red-600">{submitError}</span>
+              </div>
+            )}
+          <div className="flex gap-2.5 justify-end px-6 py-4">
             {step > 1 && (
-              <button type="button" onClick={() => setStep((s) => s - 1)} className="h-9 px-4 rounded-lg text-[13px] font-medium text-gray-700 border border-gray-200 bg-white hover:bg-gray-50 transition-colors">
+              <button type="button" onClick={() => { setStep((s) => s - 1); setSubmitError(null); }} className="h-9 px-4 rounded-lg text-[13px] font-medium text-gray-700 border border-gray-200 bg-white hover:bg-gray-50 transition-colors">
                 Voltar
               </button>
             )}
@@ -482,6 +500,7 @@ export function NewEquipmentModal({ open, onClose, companyId }: Props) {
             >
               {loading ? "Salvando..." : checkingDocs ? "Verificando..." : step < 3 ? "Continuar" : "Confirmar e Criar"}
             </button>
+          </div>
           </div>
         )}
       </div>

@@ -31,7 +31,6 @@ export default async function EquipmentPage({
       page={result.pagination.page}
       canCreate={can(user, PERMISSIONS.EQUIPMENT_CREATE)}
       canDelete={can(user, PERMISSIONS.EQUIPMENT_DELETE)}
-      userRole={user.role}
     />
   );
 }

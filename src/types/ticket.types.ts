@@ -22,6 +22,9 @@ export interface Ticket {
   created_by: string;
   assigned_to: string | null;
   resolved_at: string | null;
+  picked_up_at: string | null;
+  returned_at: string | null;
+  closed_at: string | null;
   created_at: string;
   updated_at: string;
   equipment?: { id: string; name: string; internal_code: string };

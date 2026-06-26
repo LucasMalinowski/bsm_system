@@ -164,6 +164,7 @@ export class CalibrationService {
         child_storage_path: childStoragePath ?? null,
         performed_at: dto.performed_at ?? new Date().toISOString().split("T")[0],
         notes: dto.notes ?? null,
+        cost: dto.cost ?? null,
       })
       .select("*, performer:profiles(name), template_doc:calibration_documents(name)")
       .single();

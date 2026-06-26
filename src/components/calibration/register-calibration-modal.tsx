@@ -15,6 +15,7 @@ export function RegisterCalibrationModal({ equipment, calibrationPoints, onClose
   const [selectedTemplate, setSelectedTemplate] = useState<string>("");
   const [performedAt, setPerformedAt] = useState(new Date().toISOString().split("T")[0]);
   const [notes, setNotes] = useState("");
+  const [cost, setCost] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -55,6 +56,7 @@ export function RegisterCalibrationModal({ equipment, calibrationPoints, onClose
           template_doc_id: selectedTemplate || null,
           performed_at: performedAt,
           notes: notes || null,
+          cost: cost ? Number(cost) : null,
           child_storage_path: childStoragePath,
         }),
       });
@@ -156,6 +158,20 @@ export function RegisterCalibrationModal({ equipment, calibrationPoints, onClose
               type="date"
               value={performedAt}
               onChange={(e) => setPerformedAt(e.target.value)}
+              className="w-full h-10 rounded-lg border border-gray-300 px-3 text-[13px] outline-none focus:border-[#0363a9] transition-all"
+            />
+          </div>
+
+          {/* Cost */}
+          <div>
+            <label className="text-[13px] font-semibold text-gray-700 block mb-1.5">Custo da Calibração (R$) <span className="text-gray-400 font-normal">(opcional)</span></label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={cost}
+              onChange={(e) => setCost(e.target.value)}
+              placeholder="0,00"
               className="w-full h-10 rounded-lg border border-gray-300 px-3 text-[13px] outline-none focus:border-[#0363a9] transition-all"
             />
           </div>

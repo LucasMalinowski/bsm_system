@@ -40,9 +40,9 @@ export default async function DocumentDetailPage({
             {doc.description && <p className="text-sm text-gray-500">{doc.description}</p>}
           </div>
         </div>
-        <a href={`/api/documents/${id}/download`} className="flex items-center gap-2 text-sm text-[var(--brand-primary)] hover:underline">
+        <a href={`/api/documents/${id}/download`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-[var(--brand-primary)] hover:underline">
           <Download className="h-4 w-4" />
-          Download
+          Visualizar
         </a>
       </div>
 
@@ -82,7 +82,7 @@ export default async function DocumentDetailPage({
         </Card>
       )}
 
-      {can(user, PERMISSIONS.DOCUMENT_DELETE) && (
+      {isSuperAdmin(user) && (
         <Card>
           <CardHeader>
             <CardTitle>Ações</CardTitle>
@@ -97,7 +97,7 @@ export default async function DocumentDetailPage({
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle>Histórico de Versões</CardTitle>
-            {can(user, PERMISSIONS.DOCUMENT_UPDATE) && (
+            {isSuperAdmin(user) && (
               <UploadVersionButton documentId={id} />
             )}
           </div>

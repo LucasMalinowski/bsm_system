@@ -89,8 +89,18 @@ export class TicketService {
         throw new Error(`Cannot transition from "${before.status}" to "${input.status}"`);
       }
 
+      const now = new Date().toISOString();
+      if (input.status === "in_progress" && !before.picked_up_at) {
+        (input as Record<string, unknown>).picked_up_at = now;
+      }
+      if ((input.status === "resolved" || input.status === "closed") && !before.returned_at) {
+        (input as Record<string, unknown>).returned_at = now;
+      }
       if (input.status === "resolved") {
-        (input as Record<string, unknown>).resolved_at = new Date().toISOString();
+        (input as Record<string, unknown>).resolved_at = now;
+      }
+      if (input.status === "closed") {
+        (input as Record<string, unknown>).closed_at = now;
       }
     }
 

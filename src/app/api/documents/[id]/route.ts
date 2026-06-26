@@ -55,7 +55,7 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
     const { id } = await params;
     const user = await getServerSession();
     if (!user) return unauthorizedResponse();
-    if (!can(user, PERMISSIONS.DOCUMENT_DELETE)) return forbiddenResponse();
+    if (!isSuperAdmin(user)) return forbiddenResponse();
 
     const supabase = await createSupabaseServerClient();
     const service = createDocumentService(supabase);

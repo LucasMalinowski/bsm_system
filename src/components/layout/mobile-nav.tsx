@@ -63,11 +63,18 @@ const IcoClipboard = ({ active }: { active: boolean }) => (
   </svg>
 );
 
+const IcoChart = ({ active }: { active: boolean }) => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={active ? "#0363a9" : "#9ca3af"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+  </svg>
+);
+
 const COMPANY_NAV = [
   { href: "/dashboard", label: "Início", Icon: IcoDash },
   { href: "/equipment", label: "Equip.", Icon: IcoWrench, permission: PERMISSIONS.EQUIPMENT_READ },
   { href: "/tickets", label: "Chamados", Icon: IcoTicket, permission: PERMISSIONS.TICKET_READ },
   { href: "/equipment/qr-scanner", label: "Scanner", Icon: IcoQr, permission: PERMISSIONS.EQUIPMENT_READ },
+  { href: "/admin/reports", label: "Relatórios", Icon: IcoChart, scope: "company" },
 ] as const;
 
 const SUPER_ADMIN_NAV = [
@@ -75,6 +82,7 @@ const SUPER_ADMIN_NAV = [
   { href: "/super-admin/companies", label: "Empresas", Icon: IcoBuilding },
   { href: "/super-admin/equipment", label: "Equip.", Icon: IcoWrench },
   { href: "/super-admin/tickets", label: "Chamados", Icon: IcoTicket },
+  { href: "/super-admin/reports", label: "Relatórios", Icon: IcoChart },
   { href: "/super-admin/documents", label: "Docs", Icon: IcoFile },
   { href: "/super-admin/users", label: "Usuários", Icon: IcoUsers },
   { href: "/super-admin/audit", label: "Auditoria", Icon: IcoClipboard },
@@ -90,7 +98,11 @@ export function MobileNav() {
     isSuperAdmin && (isSuperAdminRoute || !isImpersonating)
       ? SUPER_ADMIN_NAV
       : COMPANY_NAV;
-  const visibleNav = navItems.filter((item) => !("permission" in item) || !item.permission || can(item.permission));
+  const visibleNav = navItems.filter((item) => {
+    if ("scope" in item && item.scope === "company" && !hasRole("admin") && !isImpersonating) return false;
+    if ("permission" in item && item.permission && !can(item.permission)) return false;
+    return true;
+  });
 
   return (
     <nav

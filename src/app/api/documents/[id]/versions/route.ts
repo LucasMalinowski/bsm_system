@@ -13,7 +13,7 @@ export async function POST(request: NextRequest, { params }: Params) {
     const { id } = await params;
     const user = await getServerSession();
     if (!user) return unauthorizedResponse();
-    if (!can(user, PERMISSIONS.DOCUMENT_UPDATE)) return forbiddenResponse();
+    if (!isSuperAdmin(user)) return forbiddenResponse();
 
     const supabase = await createSupabaseServerClient();
     const repo = createDocumentRepository(supabase);

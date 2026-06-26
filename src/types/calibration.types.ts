@@ -64,4 +64,5 @@ export interface CreateCalibrationRecordDTO {
   template_doc_id?: string | null;
   performed_at?: string;
   notes?: string | null;
+  cost?: number | null;
 }

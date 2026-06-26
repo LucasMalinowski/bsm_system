@@ -48,6 +48,22 @@ export function EquipmentDetailClient({ equipment, canCreate, canUpdate, isSuper
   const [editingPoints, setEditingPoints] = useState(false);
   const [localPoints, setLocalPoints] = useState<CalibrationPoint[]>([]);
   const [showRegisterModal, setShowRegisterModal] = useState(false);
+  const [showMaintModal, setShowMaintModal] = useState(false);
+  const [equipDocs, setEquipDocs] = useState<Array<{
+    id: string; name: string; storage_path: string; version: number; created_at: string;
+  }>>([]);
+  const [showDocUploadModal, setShowDocUploadModal] = useState(false);
+  const [docUploadFile, setDocUploadFile] = useState<File | null>(null);
+  const [docUploadName, setDocUploadName] = useState("");
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+  const [docUploadError, setDocUploadError] = useState<string | null>(null);
+  const [maintRecords, setMaintRecords] = useState<Array<{
+    id: string; performed_at: string; description: string; cost: number | null;
+    notes: string | null; created_at: string; profiles?: { name: string } | null;
+  }>>([]);
+  const [maintForm, setMaintForm] = useState({ performed_at: "", description: "", cost: "", notes: "" });
+  const [savingMaint, setSavingMaint] = useState(false);
+  const [maintError, setMaintError] = useState<string | null>(null);
   const [savingPoints, setSavingPoints] = useState(false);
   const certInputRef = useRef<HTMLInputElement>(null);
   const [certRecordId, setCertRecordId] = useState<string | null>(null);
@@ -105,7 +121,69 @@ export function EquipmentDetailClient({ equipment, canCreate, canUpdate, isSuper
       fetch(`/api/equipment/${equipment.id}/calibration-points`).then((r) => r.json()).then(({ data }) => { setCalPoints(data ?? []); setLocalPoints(data ?? []); }).catch(() => {});
       fetch(`/api/equipment/${equipment.id}/calibrations`).then((r) => r.json()).then(({ data }) => setCalRecords(data ?? [])).catch(() => {});
     }
+    if (tab === "manutenção") {
+      fetch(`/api/equipment/${equipment.id}/maintenances`).then((r) => r.json()).then(({ data }) => setMaintRecords(data ?? [])).catch(() => {});
+    }
+    if (tab === "docs") {
+      fetch(`/api/documents?equipment_id=${equipment.id}`).then((r) => r.json()).then(({ data }) => setEquipDocs(data ?? [])).catch(() => {});
+    }
   }, [tab, equipment.id]);
+
+  const uploadEquipDoc = async () => {
+    if (!docUploadFile) return;
+    setUploadingDoc(true);
+    setDocUploadError(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", docUploadFile);
+      fd.append("name", docUploadName || docUploadFile.name);
+      fd.append("equipment_id", equipment.id);
+      if (equipment.company_id) fd.append("company_id", equipment.company_id);
+      const res = await fetch("/api/documents", { method: "POST", body: fd });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error ?? "Erro ao enviar documento");
+      }
+      const { data } = await res.json();
+      setEquipDocs((prev) => [data, ...prev]);
+      setDocUploadFile(null);
+      setDocUploadName("");
+      setShowDocUploadModal(false);
+    } catch (e) {
+      setDocUploadError(e instanceof Error ? e.message : "Erro inesperado");
+    } finally {
+      setUploadingDoc(false);
+    }
+  };
+
+  const saveMaintenance = async () => {
+    setSavingMaint(true);
+    setMaintError(null);
+    try {
+      const res = await fetch(`/api/equipment/${equipment.id}/maintenances`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          performed_at: maintForm.performed_at,
+          description: maintForm.description,
+          cost: maintForm.cost ? Number(maintForm.cost) : null,
+          notes: maintForm.notes || null,
+        }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error ?? "Erro ao salvar");
+      }
+      const { data } = await res.json();
+      setMaintRecords((prev) => [data, ...prev]);
+      setMaintForm({ performed_at: "", description: "", cost: "", notes: "" });
+      setShowMaintModal(false);
+    } catch (e) {
+      setMaintError(e instanceof Error ? e.message : "Erro inesperado");
+    } finally {
+      setSavingMaint(false);
+    }
+  };
 
   const savePoints = async () => {
     setSavingPoints(true);
@@ -141,10 +219,6 @@ export function EquipmentDetailClient({ equipment, canCreate, canUpdate, isSuper
   const tabs: Tab[] = ["dados", "calibração", "manutenção", "docs"];
 
   const calHistory = equipment.history.filter((h) => h.action === "calibration");
-  const maintHistory = equipment.history.filter(
-    (h) => h.action === "maintenance" || h.action === "updated"
-  );
-  const docHistory = equipment.history.filter((h) => h.action === "document_added");
 
   return (
     <div className="flex flex-col min-h-screen bg-[#f9fafb]">
@@ -338,11 +412,19 @@ export function EquipmentDetailClient({ equipment, canCreate, canUpdate, isSuper
                         {r.notes && <div className="text-[11px] text-gray-500 mt-0.5">{r.notes}</div>}
                       </div>
                       <div className="flex gap-1.5 flex-shrink-0">
-                        {r.child_storage_path && (
-                          <a href={`/api/equipment/${equipment.id}/calibrations/${r.id}/download`} className="h-7 px-2.5 rounded-lg text-[11px] font-medium text-[#0363a9] border border-[#0363a9]/30 hover:bg-[#0363a9]/5 flex items-center">Planilha</a>
+                        {r.child_storage_path && isSuperAdmin && (
+                          <a href={`/api/equipment/${equipment.id}/calibrations/${r.id}/download`} target="_blank" rel="noopener noreferrer" className="h-7 px-2.5 rounded-lg text-[11px] font-medium text-[#0363a9] border border-[#0363a9]/30 hover:bg-[#0363a9]/5 flex items-center">Planilha</a>
                         )}
                         {r.certificate_storage_path ? (
-                          <span className="h-7 px-2.5 rounded-lg text-[11px] font-medium text-green-700 border border-green-200 bg-green-50 flex items-center">Certificado ✓</span>
+                          <a
+                            href={`/api/equipment/${equipment.id}/calibrations/${r.id}/certificate`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="h-7 px-2.5 rounded-lg text-[11px] font-medium text-green-700 border border-green-200 bg-green-50 hover:bg-green-100 flex items-center gap-1 transition-colors"
+                          >
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M20 6L9 17l-5-5"/></svg>
+                            Certificado
+                          </a>
                         ) : isSuperAdmin ? (
                           <>
                             <input ref={certInputRef} type="file" accept=".pdf,.jpg,.png" className="hidden" onChange={async (e) => { const f = e.target.files?.[0]; if (f && certRecordId) await uploadCert(certRecordId, f); }} />
@@ -351,7 +433,7 @@ export function EquipmentDetailClient({ equipment, canCreate, canUpdate, isSuper
                               disabled={uploadingCert}
                               className="h-7 px-2.5 rounded-lg text-[11px] font-medium text-gray-600 border border-gray-200 hover:bg-gray-50 flex items-center"
                             >
-                              {uploadingCert && certRecordId === r.id ? "..." : "Certificado"}
+                              {uploadingCert && certRecordId === r.id ? "..." : "+ Certificado"}
                             </button>
                           </>
                         ) : null}
@@ -377,39 +459,122 @@ export function EquipmentDetailClient({ equipment, canCreate, canUpdate, isSuper
         )}
 
         {tab === "manutenção" && (
-          <>
-            {maintHistory.length === 0 ? (
+          <div className="flex flex-col gap-3">
+            {(isSuperAdmin || userRole === "admin") && (
+              <button
+                onClick={() => setShowMaintModal(true)}
+                className="w-full h-10 rounded-xl text-[13px] font-semibold text-white flex items-center justify-center gap-2"
+                style={{ background: "var(--brand-primary)" }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14"/></svg>
+                Registrar Manutenção
+              </button>
+            )}
+            {maintRecords.length === 0 ? (
               <div className="text-center py-10 text-gray-400 text-[13px]">Sem registros de manutenção</div>
-            ) : maintHistory.map((h) => (
-              <div key={h.id} className="bg-white rounded-xl border border-gray-200 p-3.5">
+            ) : maintRecords.map((r) => (
+              <div key={r.id} className="bg-white rounded-xl border border-gray-200 p-3.5">
                 <div className="flex justify-between mb-1.5">
                   <span className="text-[12px] text-gray-400 flex items-center gap-1">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="1.8" strokeLinecap="round">
                       <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
                     </svg>
-                    {formatDate(h.created_at)}
+                    {formatDate(r.performed_at)}
                   </span>
+                  {r.cost != null && (
+                    <span className="text-[12px] font-semibold text-gray-700">
+                      {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(r.cost)}
+                    </span>
+                  )}
                 </div>
-                <div className="text-[13px] font-semibold text-gray-900 mb-1">{h.description}</div>
-                {h.user?.name && (
-                  <div className="text-[12px] text-gray-500 flex items-center gap-1">
+                <div className="text-[13px] font-semibold text-gray-900 mb-1">{r.description}</div>
+                {r.notes && <div className="text-[12px] text-gray-500 mb-1">{r.notes}</div>}
+                {r.profiles?.name && (
+                  <div className="text-[12px] text-gray-400 flex items-center gap-1">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="1.8" strokeLinecap="round">
                       <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
                     </svg>
-                    {h.user.name}
+                    {r.profiles.name}
                   </div>
                 )}
               </div>
             ))}
-          </>
+          </div>
+        )}
+
+        {/* Register Maintenance Modal */}
+        {showMaintModal && (
+          <div className="fixed inset-0 z-[500] flex items-center justify-center" style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(2px)" }} onClick={() => setShowMaintModal(false)}>
+            <div className="bg-white rounded-[20px] overflow-hidden flex flex-col" style={{ width: 480, maxWidth: "calc(100vw - 32px)", maxHeight: "90vh", boxShadow: "0 25px 60px rgba(0,0,0,0.20)" }} onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between px-6 py-5 border-b border-gray-200">
+                <span className="text-[16px] font-bold text-gray-900">Registrar Manutenção</span>
+                <button onClick={() => setShowMaintModal(false)} className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto px-6 py-5 flex flex-col gap-3.5">
+                <div>
+                  <label className="text-[12px] font-semibold text-gray-700 block mb-1">Data de Realização <span className="text-red-500">*</span></label>
+                  <input type="date" value={maintForm.performed_at} onChange={(e) => setMaintForm((f) => ({ ...f, performed_at: e.target.value }))} className="w-full h-10 rounded-lg border border-gray-300 px-3 text-[13px] outline-none focus:border-[#0363a9] focus:shadow-[0_0_0_3px_rgba(3,99,169,0.12)]" />
+                </div>
+                <div>
+                  <label className="text-[12px] font-semibold text-gray-700 block mb-1">Descrição <span className="text-red-500">*</span></label>
+                  <textarea value={maintForm.description} onChange={(e) => setMaintForm((f) => ({ ...f, description: e.target.value }))} rows={3} placeholder="Descreva o que foi feito..." className="w-full rounded-lg border border-gray-300 px-3 py-2 text-[13px] outline-none focus:border-[#0363a9] focus:shadow-[0_0_0_3px_rgba(3,99,169,0.12)] resize-none" />
+                </div>
+                <div>
+                  <label className="text-[12px] font-semibold text-gray-700 block mb-1">Custo (R$)</label>
+                  <input type="number" min="0" step="0.01" value={maintForm.cost} onChange={(e) => setMaintForm((f) => ({ ...f, cost: e.target.value }))} placeholder="0,00" className="w-full h-10 rounded-lg border border-gray-300 px-3 text-[13px] outline-none focus:border-[#0363a9] focus:shadow-[0_0_0_3px_rgba(3,99,169,0.12)]" />
+                </div>
+                <div>
+                  <label className="text-[12px] font-semibold text-gray-700 block mb-1">Observações</label>
+                  <textarea value={maintForm.notes} onChange={(e) => setMaintForm((f) => ({ ...f, notes: e.target.value }))} rows={2} placeholder="Observações adicionais..." className="w-full rounded-lg border border-gray-300 px-3 py-2 text-[13px] outline-none focus:border-[#0363a9] focus:shadow-[0_0_0_3px_rgba(3,99,169,0.12)] resize-none" />
+                </div>
+              </div>
+              <div className="flex-shrink-0 border-t border-gray-200">
+                {maintError && (
+                  <div className="flex items-center gap-2 px-6 py-3 bg-red-50 border-b border-red-100">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    <span className="text-[12px] text-red-600">{maintError}</span>
+                  </div>
+                )}
+                <div className="flex gap-2.5 justify-end px-6 py-4">
+                  <button onClick={() => setShowMaintModal(false)} className="h-9 px-4 rounded-lg text-[13px] font-medium text-gray-700 border border-gray-200 bg-white hover:bg-gray-50">Cancelar</button>
+                  <button
+                    onClick={saveMaintenance}
+                    disabled={savingMaint || !maintForm.performed_at || !maintForm.description}
+                    className="h-9 px-5 rounded-lg text-[13px] font-semibold text-white transition-opacity"
+                    style={{ background: "var(--brand-primary)", opacity: (savingMaint || !maintForm.performed_at || !maintForm.description) ? 0.5 : 1 }}
+                  >
+                    {savingMaint ? "Salvando..." : "Salvar"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
 
         {tab === "docs" && (
-          <>
-            {docHistory.length === 0 ? (
+          <div className="flex flex-col gap-3">
+            {isSuperAdmin && (
+              <button
+                onClick={() => setShowDocUploadModal(true)}
+                className="w-full h-10 rounded-xl text-[13px] font-semibold text-white flex items-center justify-center gap-2"
+                style={{ background: "var(--brand-primary)" }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14"/></svg>
+                Anexar Documento
+              </button>
+            )}
+            {equipDocs.length === 0 ? (
               <div className="text-center py-10 text-gray-400 text-[13px]">Nenhum documento anexado</div>
-            ) : docHistory.map((h) => (
-              <div key={h.id} className="bg-white rounded-xl border border-gray-200 p-3.5 flex gap-3 items-center">
+            ) : equipDocs.map((doc) => (
+              <a
+                key={doc.id}
+                href={`/api/documents/${doc.id}/download`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-white rounded-xl border border-gray-200 p-3.5 flex gap-3 items-center hover:bg-gray-50 transition-colors"
+              >
                 <div className="w-10 h-10 rounded-[10px] bg-red-100 flex items-center justify-center flex-shrink-0">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="1.8" strokeLinecap="round">
                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -417,15 +582,51 @@ export function EquipmentDetailClient({ equipment, canCreate, canUpdate, isSuper
                   </svg>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-[13px] font-semibold text-gray-900 truncate">{h.description}</div>
-                  <div className="text-[11px] text-gray-400 mt-0.5">{formatDate(h.created_at)}</div>
+                  <div className="text-[13px] font-semibold text-gray-900 truncate">{doc.name}</div>
+                  <div className="text-[11px] text-gray-400 mt-0.5">v{doc.version} · {formatDate(doc.created_at)}</div>
                 </div>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="9 18 15 12 9 6"/>
-                </svg>
-              </div>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth="1.8" strokeLinecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </a>
             ))}
-          </>
+          </div>
+        )}
+
+        {/* Upload doc modal */}
+        {showDocUploadModal && (
+          <div className="fixed inset-0 z-[500] flex items-center justify-center" style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(2px)" }} onClick={() => setShowDocUploadModal(false)}>
+            <div className="bg-white rounded-[20px] overflow-hidden flex flex-col" style={{ width: 420, maxWidth: "calc(100vw - 32px)", boxShadow: "0 25px 60px rgba(0,0,0,0.20)" }} onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between px-6 py-5 border-b border-gray-200">
+                <span className="text-[16px] font-bold text-gray-900">Anexar Documento</span>
+                <button onClick={() => setShowDocUploadModal(false)} className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                </button>
+              </div>
+              <div className="px-6 py-5 flex flex-col gap-3.5">
+                <div>
+                  <label className="text-[12px] font-semibold text-gray-700 block mb-1">Arquivo <span className="text-red-500">*</span></label>
+                  <input type="file" onChange={(e) => { const f = e.target.files?.[0]; if (f) { setDocUploadFile(f); if (!docUploadName) setDocUploadName(f.name.replace(/\.[^/.]+$/, "")); } }} className="w-full text-[13px] text-gray-700 file:mr-3 file:h-8 file:px-3 file:rounded-lg file:border-0 file:text-[12px] file:font-medium file:bg-gray-100 file:text-gray-700 file:cursor-pointer" />
+                </div>
+                <div>
+                  <label className="text-[12px] font-semibold text-gray-700 block mb-1">Nome do documento</label>
+                  <input value={docUploadName} onChange={(e) => setDocUploadName(e.target.value)} placeholder="Nome exibido no sistema" className="w-full h-10 rounded-lg border border-gray-300 px-3 text-[13px] outline-none focus:border-[#0363a9] focus:shadow-[0_0_0_3px_rgba(3,99,169,0.12)]" />
+                </div>
+              </div>
+              <div className="flex-shrink-0 border-t border-gray-200">
+                {docUploadError && (
+                  <div className="flex items-center gap-2 px-6 py-3 bg-red-50 border-b border-red-100">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    <span className="text-[12px] text-red-600">{docUploadError}</span>
+                  </div>
+                )}
+                <div className="flex gap-2.5 justify-end px-6 py-4">
+                  <button onClick={() => setShowDocUploadModal(false)} className="h-9 px-4 rounded-lg text-[13px] font-medium text-gray-700 border border-gray-200 hover:bg-gray-50">Cancelar</button>
+                  <button onClick={uploadEquipDoc} disabled={uploadingDoc || !docUploadFile} className="h-9 px-5 rounded-lg text-[13px] font-semibold text-white" style={{ background: "var(--brand-primary)", opacity: (uploadingDoc || !docUploadFile) ? 0.5 : 1 }}>
+                    {uploadingDoc ? "Enviando..." : "Enviar"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
       </div>
 

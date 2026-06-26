@@ -19,23 +19,28 @@ export default defineConfig({
   },
 
   projects: [
-    // Auth setup runs first, shared across all projects
+    // SA auth setup
     {
       name: "setup",
       testMatch: "**/global.setup.ts",
     },
+    // Admin + employee auth setup (runs once, saves reusable state files)
+    {
+      name: "setup-roles",
+      testMatch: "**/admin.setup.ts",
+    },
 
-    // Desktop Chrome
+    // Desktop Chrome (SA auth by default; role tests override per-describe)
     {
       name: "desktop",
       use: {
         ...devices["Desktop Chrome"],
         storageState: ".playwright/auth-state.json",
       },
-      dependencies: ["setup"],
+      dependencies: ["setup", "setup-roles"],
     },
 
-    // Mobile — iPhone 12 viewport on Chromium (WebKit not required)
+    // Mobile - iPhone 12 viewport on Chromium (WebKit not required)
     {
       name: "mobile",
       use: {
@@ -43,7 +48,7 @@ export default defineConfig({
         browserName: "chromium",
         storageState: ".playwright/auth-state.json",
       },
-      dependencies: ["setup"],
+      dependencies: ["setup", "setup-roles"],
     },
   ],
 });

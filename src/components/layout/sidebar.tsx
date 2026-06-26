@@ -15,6 +15,11 @@ const IcoD = {
       <rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>
     </svg>
   ),
+  chart: (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+    </svg>
+  ),
   wrench: (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
@@ -79,6 +84,7 @@ const companyNavItems: NavItem[] = [
   { href: "/equipment",      label: "Equipamentos",  icon: IcoD.wrench,    permission: PERMISSIONS.EQUIPMENT_READ },
   { href: "/tickets",        label: "Chamados",      icon: IcoD.ticket,    permission: PERMISSIONS.TICKET_READ },
   { href: "/documents",      label: "Documentos",    icon: IcoD.file,      permission: PERMISSIONS.DOCUMENT_READ },
+  { href: "/admin/reports",  label: "Relatórios",    icon: IcoD.chart,     scope: "company" },
   { href: "/admin/users",    label: "Usuários",      icon: IcoD.users,     permission: PERMISSIONS.USER_READ, scope: "company" },
   { href: "/admin/settings", label: "Configurações", icon: IcoD.settings,  scope: "company" },
 ];
@@ -96,6 +102,7 @@ const superAdminNavItems: NavItem[] = [
   { href: "/super-admin/tickets",                 label: "Chamados",       icon: IcoD.ticket },
   { href: "/super-admin/documents",               label: "Documentos",     icon: IcoD.file },
   { href: "/super-admin/calibration-documents",   label: "Doc. Calibração", icon: IcoCalibration },
+  { href: "/super-admin/reports",                  label: "Relatórios",     icon: IcoD.chart },
   { href: "/super-admin/users",                   label: "Usuários",       icon: IcoD.users },
   { href: "/super-admin/audit",                   label: "Auditoria",      icon: IcoD.clipboard },
 ];

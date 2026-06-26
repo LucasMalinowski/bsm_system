@@ -12,6 +12,7 @@ const createRecordSchema = z.object({
   template_doc_id: z.string().uuid().nullable().optional(),
   performed_at: z.string().optional(),
   notes: z.string().nullable().optional(),
+  cost: z.number().nonnegative().nullable().optional(),
   child_storage_path: z.string().nullable().optional(),
 });
 

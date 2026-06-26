@@ -2,9 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { EquipmentSlidePanel } from "./equipment-slide-panel";
 import { NewEquipmentModal } from "./new-equipment-modal";
-import { NewTicketModal } from "@/components/tickets/new-ticket-modal";
 import Link from "next/link";
 
 const CAT_COLORS: Record<string, string> = {
@@ -41,7 +39,6 @@ interface Props {
   page: number;
   canCreate: boolean;
   canDelete?: boolean;
-  userRole: string;
 }
 
 const STATUS_FILTERS = [
@@ -52,15 +49,12 @@ const STATUS_FILTERS = [
   { id: "inactive", label: "Inativo" },
 ];
 
-export function EquipmentListClient({ equipment, total, totalPages, page, canCreate, canDelete = false, userRole }: Props) {
+export function EquipmentListClient({ equipment, total, totalPages, page, canCreate, canDelete = false }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [, startTransition] = useTransition();
 
-  const [selected, setSelected] = useState<Equipment | null>(null);
-  const [panelOpen, setPanelOpen] = useState(false);
   const [newModalOpen, setNewModalOpen] = useState(false);
-  const [newTicketEq, setNewTicketEq] = useState<Equipment | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -87,19 +81,6 @@ export function EquipmentListClient({ equipment, total, totalPages, page, canCre
     }
     params.delete("page");
     startTransition(() => router.push(`?${params.toString()}`));
-  };
-
-  const openPanel = async (eq: Equipment) => {
-    setSelected(eq);
-    setPanelOpen(true);
-    // Fetch full detail with history
-    try {
-      const res = await fetch(`/api/equipment/${eq.id}`);
-      if (res.ok) {
-        const { data } = await res.json();
-        setSelected(data);
-      }
-    } catch {/* ignore */}
   };
 
   return (
@@ -172,7 +153,7 @@ export function EquipmentListClient({ equipment, total, totalPages, page, canCre
                 return (
                   <tr
                     key={eq.id}
-                    onClick={() => openPanel(eq)}
+                    onClick={() => router.push(`/equipment/${eq.id}`)}
                     className="border-b border-gray-50 last:border-0 hover:bg-gray-50 transition-colors cursor-pointer"
                   >
                     <td className="px-4 py-3 font-mono text-[11px] text-gray-500">{eq.internal_code}</td>
@@ -272,7 +253,7 @@ export function EquipmentListClient({ equipment, total, totalPages, page, canCre
             return (
               <button
                 key={eq.id}
-                onClick={() => openPanel(eq)}
+                onClick={() => router.push(`/equipment/${eq.id}`)}
                 className="w-full bg-white border border-gray-200 rounded-[14px] overflow-hidden flex items-center gap-3 text-left cursor-pointer"
                 style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.04)", padding: "14px 14px 14px 0" }}
               >
@@ -297,27 +278,8 @@ export function EquipmentListClient({ equipment, total, totalPages, page, canCre
         </div>
       </div>
 
-      {/* Slide panel */}
-      <EquipmentSlidePanel
-        equipment={selected}
-        open={panelOpen}
-        onClose={() => setPanelOpen(false)}
-        onOpenTicket={(eq) => {
-          setPanelOpen(false);
-          setNewTicketEq(eq);
-        }}
-      />
-
       {/* New equipment modal */}
       <NewEquipmentModal open={newModalOpen} onClose={() => setNewModalOpen(false)} />
-
-      {/* New ticket modal (from slide panel) */}
-      <NewTicketModal
-        open={!!newTicketEq}
-        onClose={() => setNewTicketEq(null)}
-        preselect={newTicketEq?.id}
-        userRole={userRole}
-      />
     </>
   );
 }
