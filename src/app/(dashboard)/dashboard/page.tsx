@@ -54,6 +54,27 @@ function StatCard({
   );
 }
 
+function NavCard({ label, description, href, iconBg, iconColor, icon }: {
+  label: string; description: string; href: string; iconBg: string; iconColor: string; icon: React.ReactNode;
+}) {
+  return (
+    <Link href={href} className="block">
+      <div
+        className="bg-white border border-gray-200 rounded-[14px] p-5 flex flex-col gap-3.5 transition-shadow duration-150 hover:shadow-[0_4px_12px_rgba(0,0,0,0.08)] cursor-pointer h-full"
+        style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}
+      >
+        <div className="flex items-center justify-between">
+          <span className="text-[13px] font-medium text-gray-500">{label}</span>
+          <div className="w-9 h-9 rounded-[10px] flex items-center justify-center" style={{ background: iconBg, color: iconColor }}>
+            {icon}
+          </div>
+        </div>
+        <div className="text-[13px] text-gray-400 leading-snug">{description}</div>
+      </div>
+    </Link>
+  );
+}
+
 export default async function DashboardPage() {
   const user = await getServerSession();
   const supabase = await createSupabaseServerClient();
@@ -131,7 +152,7 @@ export default async function DashboardPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 lg:gap-3.5">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-2.5 lg:gap-3.5">
           <StatCard
             label="Empresas" value={companies.length} href="/super-admin/companies"
             iconBg="#eff6ff" iconColor="#2563eb"
@@ -151,6 +172,12 @@ export default async function DashboardPage() {
             label="Usuários Ativos" value={userCount ?? 0} href="/super-admin/users"
             iconBg="#f0fdf4" iconColor="#16a34a"
             icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>}
+          />
+          <NavCard
+            label="Relatórios" description="Gastos, calibrações, manutenções e chamados"
+            href="/super-admin/reports"
+            iconBg="#f5f3ff" iconColor="#7c3aed"
+            icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>}
           />
         </div>
 
