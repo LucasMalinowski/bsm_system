@@ -8,8 +8,16 @@ const withPWA = withPWAInit({
   aggressiveFrontEndNavCaching: true,
   reloadOnOnline: true,
   disable: process.env.NODE_ENV === "development",
+  extendDefaultRuntimeCaching: true,
   workboxOptions: {
     disableDevLogs: true,
+    runtimeCaching: [
+      {
+        // Never cache API responses — always fetch from network
+        urlPattern: /^\/api\//,
+        handler: "NetworkOnly" as const,
+      },
+    ],
   },
 });
 
