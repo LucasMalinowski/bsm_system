@@ -13,6 +13,7 @@ interface Props {
 export function RegisterCalibrationModal({ equipment, calibrationPoints, onClose, onSuccess }: Props) {
   const [templates, setTemplates] = useState<CalibrationDocument[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<string>("");
+  const [templateError, setTemplateError] = useState<string | null>(null);
   const [performedAt, setPerformedAt] = useState(new Date().toISOString().split("T")[0]);
   const [notes, setNotes] = useState("");
   const [cost, setCost] = useState("");
@@ -27,6 +28,10 @@ export function RegisterCalibrationModal({ equipment, calibrationPoints, onClose
   }, []);
 
   const handleSubmit = async () => {
+    if (!selectedTemplate) {
+      setTemplateError("Selecione uma planilha para continuar.");
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -132,19 +137,21 @@ export function RegisterCalibrationModal({ equipment, calibrationPoints, onClose
           {/* Template select */}
           <div>
             <label className="text-[13px] font-semibold text-gray-700 block mb-1.5">
-              Planilha template <span className="text-gray-400 font-normal">(opcional)</span>
+              Planilha template <span className="text-red-500"> *</span>
             </label>
             <select
               value={selectedTemplate}
-              onChange={(e) => setSelectedTemplate(e.target.value)}
-              className="w-full h-10 rounded-lg border border-gray-300 px-3 text-[13px] text-gray-900 outline-none focus:border-[#0363a9] transition-all bg-white"
+              onChange={(e) => { setSelectedTemplate(e.target.value); setTemplateError(null); }}
+              className="w-full h-10 rounded-lg border px-3 text-[13px] text-gray-900 outline-none transition-all bg-white"
+              style={{ borderColor: templateError ? "#ef4444" : "#d1d5db" }}
             >
-              <option value="">Sem template (só registro)</option>
+              <option value="">Selecione uma planilha...</option>
               {templates.map((t) => (
                 <option key={t.id} value={t.id}>{t.name} (v{t.current_version})</option>
               ))}
             </select>
-            {selectedTemplate && (
+            {templateError && <p className="text-[11px] text-red-600 mt-1">{templateError}</p>}
+            {selectedTemplate && !templateError && (
               <p className="text-[11px] text-[#0363a9] mt-1">
                 Uma planilha filha será gerada automaticamente com os dados do equipamento.
               </p>

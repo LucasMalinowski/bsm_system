@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "@/lib/auth/get-session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createCalibrationService } from "@/lib/services/calibration.service";
 import { can, PERMISSIONS } from "@/lib/auth/permissions";
 import { handleApiError, unauthorizedResponse, forbiddenResponse } from "@/lib/utils/errors";
@@ -46,7 +47,7 @@ export async function POST(request: NextRequest, { params }: Params) {
     const body = await request.json();
     const { points } = savePointsSchema.parse(body);
 
-    const supabase = await createSupabaseServerClient();
+    const supabase = createSupabaseAdminClient();
     const service = createCalibrationService(supabase);
     const saved = await service.savePoints(id, points);
 

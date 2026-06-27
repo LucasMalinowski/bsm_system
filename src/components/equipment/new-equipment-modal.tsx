@@ -36,7 +36,7 @@ export function NewEquipmentModal({ open, onClose, companyId }: Props) {
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const [form, setForm] = useState({
-    name: "", internal_code: "", serial_number: "", brand: "", model: "", tag: "", scale: "",
+    name: "", internal_code: "", serial_number: "", brand: "", model: "", scale: "",
     category: "Pesagem", location: "", acquisition_date: "", acquisition_cost: "", status: "active",
     requires_calibration: true,
     calibration_periodicity: "anual",
@@ -48,7 +48,7 @@ export function NewEquipmentModal({ open, onClose, companyId }: Props) {
   const handleClose = () => {
     setStep(1); setSaved(false); setLoading(false); setSubmitError(null); setDocsToCopy([]); setPhotoFile(null); setPhotoPreview(null);
     setCalPoints([]);
-    setForm({ name: "", internal_code: "", serial_number: "", brand: "", model: "", tag: "", scale: "", category: "Pesagem", location: "", acquisition_date: "", acquisition_cost: "", status: "active", requires_calibration: true, calibration_periodicity: "anual" });
+    setForm({ name: "", internal_code: "", serial_number: "", brand: "", model: "", scale: "", category: "Pesagem", location: "", acquisition_date: "", acquisition_cost: "", status: "active", requires_calibration: true, calibration_periodicity: "anual" });
     onClose();
   };
 
@@ -99,7 +99,6 @@ export function NewEquipmentModal({ open, onClose, companyId }: Props) {
         serial_number: form.serial_number || undefined,
         brand: form.brand || undefined,
         model: form.model || undefined,
-        tag: form.tag || undefined,
         scale: form.scale || undefined,
         category_name: form.category,
         location: form.location || undefined,
@@ -141,7 +140,7 @@ export function NewEquipmentModal({ open, onClose, companyId }: Props) {
                 sort_order: i,
               })),
           }),
-        }).catch(() => {});
+        });
       }
 
       // Copy docs from same model
@@ -287,15 +286,9 @@ export function NewEquipmentModal({ open, onClose, companyId }: Props) {
                   <input value={form.model} onChange={(e) => set("model", e.target.value)} placeholder="Ex: AUW220" className={inputCls} />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  {lbl("Tag")}
-                  <input value={form.tag} onChange={(e) => set("tag", e.target.value)} placeholder="Ex: TAG-001" className={monoCls} />
-                </div>
-                <div>
-                  {lbl("Escala")}
-                  <input value={form.scale} onChange={(e) => set("scale", e.target.value)} placeholder="Ex: 0-220g" className={inputCls} />
-                </div>
+              <div>
+                {lbl("Escala")}
+                <input value={form.scale} onChange={(e) => set("scale", e.target.value)} placeholder="Ex: 0-220g" className={inputCls} />
               </div>
               <div>
                 {lbl("Categoria")}
@@ -422,7 +415,6 @@ export function NewEquipmentModal({ open, onClose, companyId }: Props) {
                   {form.serial_number && <><span className="text-gray-500">Nº Série</span><span className="text-gray-900 font-medium font-mono">{form.serial_number}</span></>}
                   {form.brand && <><span className="text-gray-500">Fabricante</span><span className="text-gray-900 font-medium">{form.brand}</span></>}
                   {form.model && <><span className="text-gray-500">Modelo</span><span className="text-gray-900 font-medium">{form.model}</span></>}
-                  {form.tag && <><span className="text-gray-500">Tag</span><span className="text-gray-900 font-medium font-mono">{form.tag}</span></>}
                   {form.scale && <><span className="text-gray-500">Escala</span><span className="text-gray-900 font-medium">{form.scale}</span></>}
                   <span className="text-gray-500">Categoria</span><span className="text-gray-900 font-medium">{form.category}</span>
                   {form.location && <><span className="text-gray-500">Localização</span><span className="text-gray-900 font-medium">{form.location}</span></>}

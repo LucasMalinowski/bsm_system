@@ -21,6 +21,12 @@ export default async function EquipmentDetailPage({
 
   if (!equipment) notFound();
 
+  const { data: company } = await supabase
+    .from("companies")
+    .select("name")
+    .eq("id", equipment.company_id)
+    .single();
+
   return (
     <EquipmentDetailClient
       equipment={equipment}
@@ -28,6 +34,7 @@ export default async function EquipmentDetailPage({
       canUpdate={can(user, PERMISSIONS.EQUIPMENT_UPDATE)}
       isSuperAdmin={isSuperAdmin(user)}
       userRole={user.role}
+      companyName={company?.name ?? ""}
     />
   );
 }

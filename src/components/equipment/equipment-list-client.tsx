@@ -29,6 +29,7 @@ interface Equipment {
   location?: string | null;
   next_calibration?: string | null;
   acquisition_date?: string | null;
+  image_url?: string | null;
   history?: Array<{ action: string; description: string; created_at: string; user?: { name: string } | null }>;
 }
 
@@ -158,8 +159,21 @@ export function EquipmentListClient({ equipment, total, totalPages, page, canCre
                   >
                     <td className="px-4 py-3 font-mono text-[11px] text-gray-500">{eq.internal_code}</td>
                     <td className="px-4 py-3">
-                      <div className="font-semibold text-[var(--brand-primary)]">{eq.name}</div>
-                      {(eq.brand || eq.model) && <div className="text-[11px] text-gray-400 mt-0.5">{[eq.brand, eq.model].filter(Boolean).join(" ")}</div>}
+                      <div className="flex items-center gap-2.5">
+                        {eq.image_url ? (
+                          <img src={eq.image_url} alt={eq.name} className="w-8 h-8 rounded-lg object-cover flex-shrink-0 border border-gray-100" />
+                        ) : (
+                          <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+                            </svg>
+                          </div>
+                        )}
+                        <div>
+                          <div className="font-semibold text-[var(--brand-primary)]">{eq.name}</div>
+                          {(eq.brand || eq.model) && <div className="text-[11px] text-gray-400 mt-0.5">{[eq.brand, eq.model].filter(Boolean).join(" ")}</div>}
+                        </div>
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-gray-600">{eq.category?.name ?? "—"}</td>
                     <td className="px-4 py-3">
@@ -258,11 +272,15 @@ export function EquipmentListClient({ equipment, total, totalPages, page, canCre
                 style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.04)", padding: "14px 14px 14px 0" }}
               >
                 <div style={{ width: 4, height: 60, background: color, borderRadius: "0 3px 3px 0", flexShrink: 0 }} />
-                <div className="w-10 h-10 rounded-[10px] flex items-center justify-center flex-shrink-0" style={{ background: color + "18" }}>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
-                  </svg>
-                </div>
+                {eq.image_url ? (
+                  <img src={eq.image_url} alt={eq.name} className="w-10 h-10 rounded-[10px] object-cover flex-shrink-0 border border-gray-100" />
+                ) : (
+                  <div className="w-10 h-10 rounded-[10px] flex items-center justify-center flex-shrink-0" style={{ background: color + "18" }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+                    </svg>
+                  </div>
+                )}
                 <div className="flex-1 min-w-0">
                   <div className="text-[14px] font-semibold text-gray-900 mb-0.5">{eq.name}</div>
                   <div className="text-[11px] text-gray-400 font-mono mb-1">{eq.internal_code}</div>

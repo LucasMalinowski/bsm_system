@@ -95,7 +95,6 @@ export async function POST(request: NextRequest, { params }: Params) {
       "{{marca}}": equipment.brand ?? "",
       "{{modelo}}": equipment.model ?? "",
       "{{numero_serie}}": equipment.serial_number ?? "",
-      "{{tag}}": equipment.tag ?? "",
       "{{escala}}": equipment.scale ?? "",
       "{{cnpj_empresa}}": company?.cnpj ?? "",
     };

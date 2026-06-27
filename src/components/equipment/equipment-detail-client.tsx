@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import type { Equipment, EquipmentHistory, CalibrationPoint, CalibrationRecord } from "@/types";
 import { RegisterCalibrationModal } from "@/components/calibration/register-calibration-modal";
 import { NewTicketModal } from "@/components/tickets/new-ticket-modal";
 import { formatDate } from "@/lib/utils/format";
+import { generateEquipmentPDF } from "@/lib/pdf/equipment-pdf";
 
 const EQUIPMENT_STATUSES = [
   { value: "active", label: "Ativo" },
@@ -37,9 +38,10 @@ interface Props {
   canUpdate: boolean;
   isSuperAdmin: boolean;
   userRole: string;
+  companyName?: string;
 }
 
-export function EquipmentDetailClient({ equipment, canCreate, canUpdate, isSuperAdmin, userRole }: Props) {
+export function EquipmentDetailClient({ equipment, canCreate, canUpdate, isSuperAdmin, userRole, companyName = "" }: Props) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("dados");
   const [showTicketModal, setShowTicketModal] = useState(false);
@@ -65,7 +67,9 @@ export function EquipmentDetailClient({ equipment, canCreate, canUpdate, isSuper
   const [savingMaint, setSavingMaint] = useState(false);
   const [maintError, setMaintError] = useState<string | null>(null);
   const [savingPoints, setSavingPoints] = useState(false);
+  const [exportingPDF, setExportingPDF] = useState(false);
   const certInputRef = useRef<HTMLInputElement>(null);
+  const calPointsListRef = useRef<HTMLDivElement>(null);
   const [certRecordId, setCertRecordId] = useState<string | null>(null);
   const [uploadingCert, setUploadingCert] = useState(false);
 
@@ -75,7 +79,6 @@ export function EquipmentDetailClient({ equipment, canCreate, canUpdate, isSuper
     brand: equipment.brand ?? "",
     model: equipment.model ?? "",
     serial_number: equipment.serial_number ?? "",
-    tag: equipment.tag ?? "",
     scale: equipment.scale ?? "",
     status: equipment.status,
     location: equipment.location ?? "",
@@ -96,7 +99,6 @@ export function EquipmentDetailClient({ equipment, canCreate, canUpdate, isSuper
           brand: editForm.brand || null,
           model: editForm.model || null,
           serial_number: editForm.serial_number || null,
-          tag: editForm.tag || null,
           scale: editForm.scale || null,
           status: editForm.status,
           location: editForm.location || null,
@@ -187,17 +189,53 @@ export function EquipmentDetailClient({ equipment, canCreate, canUpdate, isSuper
 
   const savePoints = async () => {
     setSavingPoints(true);
-    await fetch(`/api/equipment/${equipment.id}/calibration-points`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ points: localPoints }),
-    });
-    setCalPoints(localPoints);
-    setEditingPoints(false);
-    setSavingPoints(false);
+    try {
+      const res = await fetch(`/api/equipment/${equipment.id}/calibration-points`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ points: localPoints }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error ?? "Erro ao salvar pontos");
+      }
+      const { data } = await res.json();
+      setCalPoints(data ?? localPoints);
+      setLocalPoints(data ?? localPoints);
+      setEditingPoints(false);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Erro ao salvar pontos de calibração");
+    } finally {
+      setSavingPoints(false);
+    }
   };
 
-  const addPoint = () => setLocalPoints((p) => [...p, { id: crypto.randomUUID(), equipment_id: equipment.id, point_value: "", criterion: "", error_tolerance: null, sort_order: p.length, created_at: "" }]);
+  const exportPDF = async () => {
+    setExportingPDF(true);
+    try {
+      const [ptsRes, recsRes, maintRes, docsRes] = await Promise.all([
+        fetch(`/api/equipment/${equipment.id}/calibration-points`).then((r) => r.json()).catch(() => ({ data: [] })),
+        fetch(`/api/equipment/${equipment.id}/calibrations`).then((r) => r.json()).catch(() => ({ data: [] })),
+        fetch(`/api/equipment/${equipment.id}/maintenances`).then((r) => r.json()).catch(() => ({ data: [] })),
+        fetch(`/api/documents?equipment_id=${equipment.id}`).then((r) => r.json()).catch(() => ({ data: [] })),
+      ]);
+      generateEquipmentPDF(
+        equipment,
+        ptsRes.data ?? [],
+        recsRes.data ?? [],
+        maintRes.data ?? [],
+        docsRes.data ?? [],
+        companyName,
+      );
+    } finally {
+      setExportingPDF(false);
+    }
+  };
+
+  const addPoint = () => {
+    setLocalPoints((p) => [...p, { id: crypto.randomUUID(), equipment_id: equipment.id, point_value: "", criterion: "", error_tolerance: null, sort_order: p.length, created_at: "" }]);
+    setTimeout(() => calPointsListRef.current?.scrollTo({ top: calPointsListRef.current.scrollHeight, behavior: "smooth" }), 50);
+  };
   const removePoint = (idx: number) => setLocalPoints((p) => p.filter((_, i) => i !== idx));
   const updatePoint = (idx: number, field: keyof CalibrationPoint, value: unknown) =>
     setLocalPoints((p) => p.map((pt, i) => i === idx ? { ...pt, [field]: value } : pt));
@@ -230,24 +268,46 @@ export function EquipmentDetailClient({ equipment, canCreate, canUpdate, isSuper
           paddingTop: "calc(env(safe-area-inset-top, 0px) + 60px)",
         }}
       >
-        <button
-          onClick={() => router.back()}
-          className="w-9 h-9 flex items-center justify-center rounded-[10px] self-start transition-opacity hover:opacity-80"
-          style={{ background: "rgba(255,255,255,0.2)", border: "none" }}
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="15 18 9 12 15 6"/>
-          </svg>
-        </button>
-        <div className="flex gap-3 items-start">
-          <div
-            className="w-[52px] h-[52px] rounded-[14px] flex items-center justify-center flex-shrink-0"
-            style={{ background: "rgba(255,255,255,0.2)" }}
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => router.back()}
+            className="w-9 h-9 flex items-center justify-center rounded-[10px] transition-opacity hover:opacity-80"
+            style={{ background: "rgba(255,255,255,0.2)", border: "none" }}
           >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6"/>
             </svg>
-          </div>
+          </button>
+          <button
+            onClick={exportPDF}
+            disabled={exportingPDF}
+            className="flex items-center gap-1.5 px-3 h-9 rounded-[10px] text-[12px] font-semibold transition-opacity hover:opacity-80 disabled:opacity-60"
+            style={{ background: "rgba(255,255,255,0.2)", color: "#fff", border: "none" }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            {exportingPDF ? "Gerando..." : "Exportar PDF"}
+          </button>
+        </div>
+        <div className="flex gap-3 items-start">
+          {equipment.image_url ? (
+            <img
+              src={equipment.image_url}
+              alt={equipment.name}
+              className="w-[52px] h-[52px] rounded-[14px] object-cover flex-shrink-0"
+              style={{ border: "2px solid rgba(255,255,255,0.3)" }}
+            />
+          ) : (
+            <div
+              className="w-[52px] h-[52px] rounded-[14px] flex items-center justify-center flex-shrink-0"
+              style={{ background: "rgba(255,255,255,0.2)" }}
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+              </svg>
+            </div>
+          )}
           <div>
             <div className="text-[18px] font-bold text-white leading-tight mb-1">{equipment.name}</div>
             <div className="text-[12px] font-mono mb-2" style={{ color: "rgba(255,255,255,0.7)" }}>
@@ -304,7 +364,6 @@ export function EquipmentDetailClient({ equipment, canCreate, canUpdate, isSuper
               ["Fabricante", equipment.brand],
               ["Modelo", equipment.model],
               ["Número de Série", equipment.serial_number],
-              ["Tag", equipment.tag],
               ["Escala", equipment.scale],
               ["Categoria", catName || null],
               ["Localização", equipment.location],
@@ -367,7 +426,7 @@ export function EquipmentDetailClient({ equipment, canCreate, canUpdate, isSuper
                   </div>
                 )
               ) : (
-                <div className="flex flex-col gap-2 p-3">
+                <div ref={calPointsListRef} className="flex flex-col gap-2 p-3 overflow-y-auto max-h-64">
                   {localPoints.map((p, i) => (
                     <div key={p.id} className="grid gap-1.5 items-center" style={{ gridTemplateColumns: "1fr 80px 1fr 28px" }}>
                       <input value={p.point_value} onChange={(e) => updatePoint(i, "point_value", e.target.value)} placeholder="Ponto" className="h-8 rounded-lg border border-gray-300 px-2 text-[12px] outline-none focus:border-[#0363a9]" />
@@ -689,7 +748,6 @@ export function EquipmentDetailClient({ equipment, canCreate, canUpdate, isSuper
                 { key: "brand", label: "Fabricante", type: "text" },
                 { key: "model", label: "Modelo", type: "text" },
                 { key: "serial_number", label: "Número de Série", type: "text" },
-                { key: "tag", label: "Tag", type: "text" },
                 { key: "scale", label: "Escala", type: "text" },
                 { key: "location", label: "Localização", type: "text" },
               ].map(({ key, label, type }) => (

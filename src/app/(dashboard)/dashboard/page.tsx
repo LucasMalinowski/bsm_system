@@ -336,16 +336,6 @@ export default async function DashboardPage() {
           <h1 className="text-[20px] lg:text-[24px] font-extrabold text-gray-900">Olá, {firstName} 👋</h1>
           <p className="text-[13px] text-gray-500 mt-0.5 capitalize">{today} — Aqui está o resumo do sistema</p>
         </div>
-        {canCreateTickets && (
-          <Link
-            href="/tickets/new"
-            className="hidden lg:flex items-center gap-1.5 h-9 px-4 rounded-lg text-[13px] font-semibold text-white transition-opacity hover:opacity-90"
-            style={{ background: "var(--brand-primary)" }}
-          >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Novo Chamado
-          </Link>
-        )}
       </div>
 
       {/* Stat cards */}
