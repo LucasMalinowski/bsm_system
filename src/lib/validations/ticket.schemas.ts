@@ -25,6 +25,9 @@ export const updateTicketSchema = z.object({
   equipment_id: z.string().uuid().nullable().optional(),
   assigned_to: z.string().uuid().nullable().optional(),
   photo_url: z.string().url().nullable().optional(),
+  finalization_reason: z.string().max(100).optional(),
+  finalization_notes: z.string().max(2000).optional(),
+  budget_url: z.string().nullable().optional(),
 });
 
 export const ticketFilterSchema = paginationSchema.extend({

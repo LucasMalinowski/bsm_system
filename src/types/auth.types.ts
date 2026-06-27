@@ -10,6 +10,7 @@ export type Permission =
   | "ticket:update"
   | "ticket:delete"
   | "ticket:assign"
+  | "ticket:comment"
   | "document:read"
   | "document:upload"
   | "document:update"

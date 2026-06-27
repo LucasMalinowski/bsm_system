@@ -25,6 +25,9 @@ export interface Ticket {
   picked_up_at: string | null;
   returned_at: string | null;
   closed_at: string | null;
+  finalization_reason: string | null;
+  finalization_notes: string | null;
+  budget_url: string | null;
   created_at: string;
   updated_at: string;
   equipment?: { id: string; name: string; internal_code: string };
@@ -60,6 +63,9 @@ export interface UpdateTicketDTO {
   priority?: TicketPriority;
   equipment_id?: string | null;
   assigned_to?: string | null;
+  finalization_reason?: string;
+  finalization_notes?: string;
+  budget_url?: string | null;
 }
 
 export interface CreateCommentDTO {

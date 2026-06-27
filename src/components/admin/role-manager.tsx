@@ -11,7 +11,8 @@ interface Props {
   userRole: UserRole;
 }
 
-const COLUMN_LABELS = ["Visualizar", "Criar", "Editar", "Excluir"];
+const COLUMN_LABELS = ["Visualizar", "Criar", "Editar", "Excluir", "Comentar"];
+const MAX_COLS = COLUMN_LABELS.length;
 
 export function RoleManager({ userId, currentPermissions, userRole }: Props) {
   const router = useRouter();
@@ -54,7 +55,7 @@ export function RoleManager({ userId, currentPermissions, userRole }: Props) {
     <div className="flex flex-col gap-4">
       <div className="rounded-xl border border-gray-200 overflow-hidden text-[13px]">
         {/* Header */}
-        <div className="grid bg-gray-50 border-b border-gray-200 px-4 py-2.5" style={{ gridTemplateColumns: "1fr repeat(4, 80px)" }}>
+        <div className="grid bg-gray-50 border-b border-gray-200 px-4 py-2.5" style={{ gridTemplateColumns: `1fr repeat(${MAX_COLS}, 80px)` }}>
           <span className="font-semibold text-gray-500 text-[11px] uppercase tracking-wide">Módulo</span>
           {COLUMN_LABELS.map((col) => (
             <span key={col} className="font-semibold text-gray-500 text-[11px] uppercase tracking-wide text-center">{col}</span>
@@ -64,6 +65,7 @@ export function RoleManager({ userId, currentPermissions, userRole }: Props) {
         {/* Rows */}
         {PERMISSION_GROUPS.map((group, gi) => {
           const perms = [...group.permissions] as Array<Permission | null>;
+          while (perms.length < MAX_COLS) perms.push(null);
           return (
             <div
               key={group.label}

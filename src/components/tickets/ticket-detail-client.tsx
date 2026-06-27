@@ -1,13 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { TicketStatusBadge, TicketPriorityBadge } from "@/components/tickets/ticket-status-badge";
 import { Avatar } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDateTime } from "@/lib/utils/format";
+import { TicketFinalizationModal } from "@/components/tickets/ticket-finalization-modal";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import Link from "next/link";
-import { ArrowLeft, AlertCircle } from "lucide-react";
+import { ArrowLeft, AlertCircle, FileText } from "lucide-react";
 import type { Ticket, TicketComment } from "@/types";
 
 const VALID_TRANSITIONS: Record<string, { value: string; label: string }[]> = {
@@ -29,11 +31,12 @@ const STATUS_COLORS: Record<string, string> = {
 interface Props {
   ticket: Ticket & { comments?: TicketComment[] };
   canUpdate: boolean;
+  canComment: boolean;
   canAssign: boolean;
   currentUserId: string;
 }
 
-export function TicketDetailClient({ ticket, canUpdate, canAssign, currentUserId }: Props) {
+export function TicketDetailClient({ ticket, canUpdate, canComment, canAssign, currentUserId }: Props) {
   const router = useRouter();
   const [status, setStatus] = useState(ticket.status);
   const [comments, setComments] = useState<TicketComment[]>(ticket.comments ?? []);
@@ -41,17 +44,43 @@ export function TicketDetailClient({ ticket, canUpdate, canAssign, currentUserId
   const [submittingComment, setSubmittingComment] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [finalizationOpen, setFinalizationOpen] = useState(false);
+  const [budgetUrl, setBudgetUrl] = useState(ticket.budget_url);
+  const [budgetUploading, setBudgetUploading] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient();
+    const channel = supabase
+      .channel(`ticket-comments-${ticket.id}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "ticket_comments", filter: `ticket_id=eq.${ticket.id}` },
+        (payload: { new: Record<string, unknown> }) => {
+          const row = payload.new as unknown as TicketComment;
+          setComments((prev) =>
+            prev.find((c) => c.id === row.id) ? prev : [...prev, row]
+          );
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [ticket.id]);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [comments]);
 
   const transitions = VALID_TRANSITIONS[status] ?? [];
 
-  const changeStatus = async (newStatus: string) => {
+  const changeStatus = async (newStatus: string, extras?: Record<string, unknown>) => {
     setUpdatingStatus(true);
     setError(null);
     try {
       const res = await fetch(`/api/tickets/${ticket.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify({ status: newStatus, ...extras }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -64,6 +93,11 @@ export function TicketDetailClient({ ticket, canUpdate, canAssign, currentUserId
     } finally {
       setUpdatingStatus(false);
     }
+  };
+
+  const handleFinalize = async (reason: string, notes: string) => {
+    await changeStatus("closed", { finalization_reason: reason, finalization_notes: notes });
+    setFinalizationOpen(false);
   };
 
   const submitComment = async (e: React.FormEvent) => {
@@ -79,7 +113,9 @@ export function TicketDetailClient({ ticket, canUpdate, canAssign, currentUserId
       });
       if (!res.ok) throw new Error("Erro ao enviar comentário");
       const { data } = await res.json();
-      setComments((prev) => [...prev, data]);
+      setComments((prev) =>
+        prev.find((c) => c.id === data.id) ? prev : [...prev, data]
+      );
       setCommentBody("");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro inesperado");
@@ -146,28 +182,96 @@ export function TicketDetailClient({ ticket, canUpdate, canAssign, currentUserId
             </Card>
           )}
 
+          {canUpdate && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Orçamento</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {budgetUrl && (
+                  <a
+                    href={budgetUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-2 text-sm font-medium hover:underline"
+                    style={{ color: "var(--brand-primary)" }}
+                  >
+                    <FileText className="h-4 w-4" />
+                    Ver Orçamento
+                  </a>
+                )}
+                <div className="flex items-center gap-3">
+                  <label className="cursor-pointer">
+                    <span className="text-sm text-gray-500 hover:text-gray-700 underline underline-offset-2">
+                      {budgetUrl ? "Substituir arquivo" : "Anexar orçamento (PDF, Excel, Word)"}
+                    </span>
+                    <input
+                      type="file"
+                      accept=".pdf,.xls,.xlsx,.doc,.docx"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        setBudgetUploading(true);
+                        try {
+                          const fd = new FormData();
+                          fd.append("file", file);
+                          const r = await fetch(`/api/tickets/${ticket.id}/budget`, { method: "POST", body: fd });
+                          if (!r.ok) throw new Error("Falha no upload");
+                          const { url } = await r.json();
+                          await fetch(`/api/tickets/${ticket.id}`, {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ budget_url: url }),
+                          });
+                          setBudgetUrl(url);
+                        } catch {
+                          setError("Erro ao enviar orçamento");
+                        } finally {
+                          setBudgetUploading(false);
+                          e.target.value = "";
+                        }
+                      }}
+                    />
+                  </label>
+                  {budgetUploading && <span className="text-xs text-gray-400">Enviando...</span>}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <Card>
             <CardHeader>
               <CardTitle>Comentários ({comments.length})</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {comments.map((comment) => (
-                <div key={comment.id} className="flex gap-3">
-                  <Avatar name={comment.user?.name ?? "?"} src={comment.user?.avatar_url} size="sm" />
-                  <div className="flex-1 rounded-lg bg-gray-50 p-3">
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm font-medium text-gray-900">{comment.user?.name}</p>
-                      <p className="text-xs text-gray-400">{formatDateTime(comment.created_at)}</p>
+              <div className="flex flex-col gap-3 max-h-[480px] overflow-y-auto pr-1">
+                {comments.length === 0 && (
+                  <p className="text-sm text-gray-400">Nenhum comentário ainda</p>
+                )}
+                {comments.map((cm) => {
+                  const isSelf = cm.user_id === currentUserId;
+                  return (
+                    <div key={cm.id} className={`flex flex-col ${isSelf ? "items-end" : "items-start"}`}>
+                      {!isSelf && (
+                        <p className="text-xs text-gray-500 mb-1 ml-1">{cm.user?.name ?? "Usuário"}</p>
+                      )}
+                      <div
+                        className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm ${
+                          isSelf ? "rounded-br-sm text-white" : "rounded-bl-sm bg-gray-100 text-gray-900"
+                        }`}
+                        style={isSelf ? { background: "var(--brand-primary)" } : undefined}
+                      >
+                        <p className="whitespace-pre-wrap">{cm.body}</p>
+                      </div>
+                      <p className="text-[10px] text-gray-400 mt-1 mx-1">{formatDateTime(cm.created_at)}</p>
                     </div>
-                    <p className="mt-1 text-sm text-gray-700 whitespace-pre-wrap">{comment.body}</p>
-                  </div>
-                </div>
-              ))}
-              {comments.length === 0 && (
-                <p className="text-sm text-gray-400">Nenhum comentário ainda</p>
-              )}
+                  );
+                })}
+                <div ref={chatEndRef} />
+              </div>
 
-              {canUpdate && (
+              {canComment && (
                 <form onSubmit={submitComment} className="flex gap-3 pt-2 border-t border-gray-100">
                   <div className="flex-1">
                     <textarea
@@ -207,7 +311,7 @@ export function TicketDetailClient({ ticket, canUpdate, canAssign, currentUserId
               {ticket.equipment && (
                 <div>
                   <p className="text-xs text-gray-500">Equipamento</p>
-                  <Link href={`/equipment/${ticket.equipment.id}`} className="font-medium text-[var(--brand-primary)] hover:underline">
+                  <Link href={`/equipment/${ticket.equipment.id}`} className="font-medium hover:underline" style={{ color: "var(--brand-primary)" }}>
                     {ticket.equipment.name}
                   </Link>
                 </div>
@@ -240,6 +344,18 @@ export function TicketDetailClient({ ticket, canUpdate, canAssign, currentUserId
                   <p>{formatDateTime(ticket.closed_at)}</p>
                 </div>
               )}
+              {ticket.finalization_reason && (
+                <div>
+                  <p className="text-xs text-gray-500">Motivo de encerramento</p>
+                  <p className="font-medium">{ticket.finalization_reason}</p>
+                </div>
+              )}
+              {ticket.finalization_notes && (
+                <div>
+                  <p className="text-xs text-gray-500">Observações</p>
+                  <p className="whitespace-pre-wrap">{ticket.finalization_notes}</p>
+                </div>
+              )}
               {ticket.created_at && (
                 <div>
                   <p className="text-xs text-gray-500">Tempo aberto</p>
@@ -262,7 +378,11 @@ export function TicketDetailClient({ ticket, canUpdate, canAssign, currentUserId
                 {transitions.map((t) => (
                   <button
                     key={t.value}
-                    onClick={() => changeStatus(t.value)}
+                    onClick={() =>
+                      t.value === "closed"
+                        ? setFinalizationOpen(true)
+                        : changeStatus(t.value)
+                    }
                     disabled={updatingStatus}
                     className="w-full h-9 rounded-lg text-sm font-semibold disabled:opacity-50 transition-opacity hover:opacity-90"
                     style={{ background: STATUS_COLORS[t.value] ?? "#374151", color: "#fff" }}
@@ -275,6 +395,12 @@ export function TicketDetailClient({ ticket, canUpdate, canAssign, currentUserId
           )}
         </div>
       </div>
+
+      <TicketFinalizationModal
+        open={finalizationOpen}
+        onClose={() => setFinalizationOpen(false)}
+        onConfirm={handleFinalize}
+      />
     </div>
   );
 }

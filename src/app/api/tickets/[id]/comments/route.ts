@@ -13,7 +13,7 @@ export async function POST(request: NextRequest, { params }: Params) {
     const { id } = await params;
     const user = await getServerSession();
     if (!user) return unauthorizedResponse();
-    if (!can(user, PERMISSIONS.TICKET_UPDATE)) return forbiddenResponse();
+    if (!can(user, PERMISSIONS.TICKET_COMMENT)) return forbiddenResponse();
 
     const body = await request.json();
     const input = createCommentSchema.parse(body);

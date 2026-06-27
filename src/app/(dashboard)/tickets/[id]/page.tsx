@@ -25,6 +25,7 @@ export default async function TicketDetailPage({
     <TicketDetailClient
       ticket={ticket}
       canUpdate={can(user, PERMISSIONS.TICKET_UPDATE)}
+      canComment={can(user, PERMISSIONS.TICKET_COMMENT)}
       canAssign={can(user, PERMISSIONS.TICKET_ASSIGN)}
       currentUserId={user.id}
     />
