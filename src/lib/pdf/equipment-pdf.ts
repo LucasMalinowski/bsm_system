@@ -52,7 +52,8 @@ export function generateEquipmentPDF(
   calRecords: CalibrationRecord[],
   maintRecords: MaintenanceRecord[],
   docs: DocRecord[],
-  companyName: string
+  companyName: string,
+  imageDataUrl?: string | null
 ): void {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   let y = 0;
@@ -120,6 +121,15 @@ export function generateEquipmentPDF(
 
   // ── IDENTIFICAÇÃO ──────────────────────────────────────────────────────────
   addSectionHeader("Identificação");
+
+  if (imageDataUrl) {
+    const imgW = 42, imgH = 42;
+    const imgX = PAGE_W - MARGIN - imgW;
+    try {
+      doc.addImage(imageDataUrl, "JPEG", imgX, y, imgW, imgH);
+    } catch { /* skip on bad image data */ }
+  }
+
   add2ColRows([
     ["Código Interno", equipment.internal_code],
     ["Nome", equipment.name],

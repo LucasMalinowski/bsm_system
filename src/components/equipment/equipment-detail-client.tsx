@@ -73,6 +73,7 @@ export function EquipmentDetailClient({ equipment, canCreate, canUpdate, isSuper
   const [certRecordId, setCertRecordId] = useState<string | null>(null);
   const [uploadingCert, setUploadingCert] = useState(false);
 
+  const [lightboxOpen, setLightboxOpen] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editForm, setEditForm] = useState({
     name: equipment.name,
@@ -219,6 +220,20 @@ export function EquipmentDetailClient({ equipment, canCreate, canUpdate, isSuper
         fetch(`/api/equipment/${equipment.id}/maintenances`).then((r) => r.json()).catch(() => ({ data: [] })),
         fetch(`/api/documents?equipment_id=${equipment.id}`).then((r) => r.json()).catch(() => ({ data: [] })),
       ]);
+
+      let imageDataUrl: string | null = null;
+      if (equipment.image_url) {
+        try {
+          const blob = await fetch(equipment.image_url).then((r) => r.blob());
+          imageDataUrl = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+        } catch { /* skip photo on error */ }
+      }
+
       generateEquipmentPDF(
         equipment,
         ptsRes.data ?? [],
@@ -226,6 +241,7 @@ export function EquipmentDetailClient({ equipment, canCreate, canUpdate, isSuper
         maintRes.data ?? [],
         docsRes.data ?? [],
         companyName,
+        imageDataUrl,
       );
     } finally {
       setExportingPDF(false);
@@ -295,8 +311,9 @@ export function EquipmentDetailClient({ equipment, canCreate, canUpdate, isSuper
             <img
               src={equipment.image_url}
               alt={equipment.name}
-              className="w-[52px] h-[52px] rounded-[14px] object-cover flex-shrink-0"
+              className="w-[52px] h-[52px] rounded-[14px] object-cover flex-shrink-0 cursor-pointer"
               style={{ border: "2px solid rgba(255,255,255,0.3)" }}
+              onClick={() => setLightboxOpen(true)}
             />
           ) : (
             <div
@@ -798,6 +815,21 @@ export function EquipmentDetailClient({ equipment, canCreate, canUpdate, isSuper
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {lightboxOpen && equipment.image_url && (
+        <div
+          className="fixed inset-0 z-[999] flex items-center justify-center"
+          style={{ background: "rgba(0,0,0,0.85)" }}
+          onClick={() => setLightboxOpen(false)}
+        >
+          <img
+            src={equipment.image_url}
+            alt={equipment.name}
+            className="max-w-[90vw] max-h-[90vh] rounded-xl object-contain shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
         </div>
       )}
     </div>

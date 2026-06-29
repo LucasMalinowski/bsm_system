@@ -27,7 +27,15 @@ export async function GET(_req: NextRequest, { params }: Params) {
     if (!user) return unauthorizedResponse();
     if (!can(user, PERMISSIONS.EQUIPMENT_READ)) return forbiddenResponse();
 
-    const supabase = await createSupabaseServerClient();
+    const supabase = createSupabaseAdminClient();
+
+    if (user.role !== "super_admin") {
+      const { data: eq } = await supabase
+        .from("equipment").select("company_id").eq("id", id).single();
+      if (!eq || (user.company_id && eq.company_id !== user.company_id))
+        return forbiddenResponse();
+    }
+
     const service = createCalibrationService(supabase);
     const points = await service.listPoints(id);
 
